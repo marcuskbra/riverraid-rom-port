@@ -9,7 +9,7 @@ pnpm install
 pnpm run serve
 ```
 
-`pnpm install` installs the static server and turns on the pre-push hook (see Check). Open:
+`pnpm install` installs the static server and Biome, and turns on the pre-push hook (see Check). Open:
 
 - Site with the game (the GitHub Pages front page): http://127.0.0.1:8080/
 - Harness, the game with live RAM readouts: http://127.0.0.1:8080/harness.html
@@ -48,7 +48,7 @@ test/       smoke and snapshot tests
 pnpm run check
 ```
 
-Runs every `test/*.test.js` with Node's test runner. `test/syntax.test.js` syntax-checks every module under `src/`, including the browser code the other tests don't load. `test/smoke.test.js` is a power-on/RESET run of the port that compares a checksum of the start screen (a Stella snapshot match upstream) and checks that the game starts. `test/snapshot.test.js` plays five scripted runs (attract mode with the screensaver, one and two players, low fuel and a maxed-out score) and compares every frame with `test/snapshot.json`: the zero page apart from scratch bytes, the sound registers and the screen as `drawScreen` paints it. Without the ROM, that recording is the reference, so a refactor must leave every frame unchanged.
+Lints the code with [Biome](https://biomejs.dev) (its recommended rules; the formatter is off, so the compact style and the ROM tables' rows stay as they are), then runs every `test/*.test.js` with Node's test runner. `test/syntax.test.js` syntax-checks every module under `src/`, including the browser code the other tests don't load. `test/smoke.test.js` is a power-on/RESET run of the port that compares a checksum of the start screen (a Stella snapshot match upstream) and checks that the game starts. `test/snapshot.test.js` plays five scripted runs (attract mode with the screensaver, one and two players, low fuel and a maxed-out score) and compares every frame with `test/snapshot.json`: the zero page apart from scratch bytes, the sound registers and the screen as `drawScreen` paints it. Without the ROM, that recording is the reference, so a refactor must leave every frame unchanged.
 
 The pre-push hook in `.githooks/` runs the same check before every push. `git push --no-verify` skips it once.
 

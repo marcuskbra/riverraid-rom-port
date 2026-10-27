@@ -75,7 +75,7 @@ class TiaSound extends AudioWorkletProcessor {
     };
   }
 
-  process(inputs, outputs) {
+  process(_inputs, outputs) {
     const out = outputs[0][0];
     const ticksPerSample = TIA_AUDIO_CLOCK / sampleRate;
     for (let i = 0; i < out.length; i += 1) {

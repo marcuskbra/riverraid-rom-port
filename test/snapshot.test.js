@@ -115,7 +115,7 @@ if (process.argv.includes('--update')) {
     results[scenario.name] = { ...run, checkpoints: run.checkpoints.join(' ') };
     console.log(scenario.name, run.stats);
   }
-  writeFileSync(SNAPSHOT, JSON.stringify(results, null, 2) + '\n');
+  writeFileSync(SNAPSHOT, `${JSON.stringify(results, null, 2)}\n`);
   console.log('snapshot recorded');
 } else {
   const recorded = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));

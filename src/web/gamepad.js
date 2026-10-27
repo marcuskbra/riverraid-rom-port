@@ -9,7 +9,7 @@ let lastBack = false;
 
 export function readGamepad() {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-  const pad = [...pads].find((p) => p && p.connected);
+  const pad = [...pads].find((p) => p?.connected);
   if (!pad) return null;
   const button = (i) => !!pad.buttons[i]?.pressed;
   const x = pad.axes[0] ?? 0, y = pad.axes[1] ?? 0;
