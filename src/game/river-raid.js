@@ -8,7 +8,7 @@
 // checked frame for frame against upstream's port.
 
 import {
-  PF_PAGE_FC, PF_PAGE_FD, BANK_PTR_TAB, PAGE_FLAG_TAB, SHAPE_POS_TAB, ENEMY_ID_TAB, ROAD_COLOR_TAB, INIT_TAB,
+  PF_PAGE_FC, PF_PAGE_FD, BANK_PTR_TAB, PAGE_FLAG_TAB, SHAPE_POS_TAB, ENEMY_ID_TAB, ROAD_COLOR_TAB,
 } from './data/playfield.js';
 
 // zero page addresses (Jentzsch lines 168-275)
@@ -128,7 +128,9 @@ function nextPatternId(mem, valleyWidth) {
   // random id 2..15, at most 14 (13 with an island, 8 in the first levels)
   let id = mem[ZP.randomLo] & 0x0f;
   if (id < 2) id += 2;
-  return Math.min(id, valleyWidth ? 8 : mem[ZP.PF_State] & ISLAND_FLAG ? 13 : 14);
+  if (valleyWidth) return Math.min(id, 8);
+  if (mem[ZP.PF_State] & ISLAND_FLAG) return Math.min(id, 13);
+  return Math.min(id, 14);
 }
 
 // .nextBlockPart .. .skipSwapPF: PF1/PF2 pattern pointers and page flags. The
@@ -137,11 +139,15 @@ function nextPatternId(mem, valleyWidth) {
 function setPlayfield(mem) {
   const prev = mem[ZP.prevPF1PatId], cur = mem[ZP.PF1PatId];
   const high = Math.max(prev, cur), low = Math.min(prev, cur);
-  const diff = prev === cur ? 0 : prev > cur ? prev - cur - 1 : prev - cur + 1;
+  let diff = prev - cur;
+  if (diff > 0) diff -= 1;
+  else if (diff < 0) diff += 1;
   const pattern = (BANK_PTR_TAB[high] + diff) & 0xff;
   let pf1 = pattern, pf2 = 0;
   if (high >= SWITCH_PAGE_ID) {
-    pf1 = low >= SWITCH_PAGE_ID - 1 ? 0x07 : cur > prev ? prev : 14 - cur;
+    if (low >= SWITCH_PAGE_ID - 1) pf1 = 0x07;
+    else if (cur > prev) pf1 = prev;
+    else pf1 = 14 - cur;
     pf2 = pattern;
   }
   const page = high === 0 ? 0 : BLOCK_FLAGS.PF1_PAGE;
@@ -213,7 +219,7 @@ function placeObject(mem, id, state, x) {
 // a road block RoadColorTab[row] on loop rows; it changes together with the
 // playfield. Upstream's tools/verify-kernel-pf.mjs checked this per pixel against the ROM.
 export const KERNEL_LINES = 160;
-const PF_COLORS = Object.freeze({ GREEN: 0xd2, BLUE: 0x84, DARK_RED: 0x42 });
+const PF_GREEN = 0xd2;
 
 function pfPatternByte(pageFlag, low) {
   const page = pageFlag ? PF_PAGE_FD : PF_PAGE_FC;
@@ -226,7 +232,7 @@ function blockPlayfieldRow(mem, block, row) {
   const flags = mem[ZP.blockLst + block];
   const pf1 = pfPatternByte(flags & BLOCK_FLAGS.PF1_PAGE, mem[ZP.PF1Lst + block] + row);
   const pf2 = pfPatternByte(flags & BLOCK_FLAGS.PF2_PAGE, mem[ZP.PF2Lst + block] + row);
-  const green = (flags & BLOCK_FLAGS.PF_COLOR) | PF_COLORS.GREEN;
+  const green = (flags & BLOCK_FLAGS.PF_COLOR) | PF_GREEN;
   const colorRow = row === 0 ? 1 : row;
   const road = (flags & BLOCK_FLAGS.PF_ROAD) && colorRow <= 12;
   return { pf1, pf2, colupf: road ? ROAD_COLOR_TAB[colorRow] : green };
@@ -314,7 +320,7 @@ export function kernelObjectLines(mem, shapes, jetTable) {
 // *** TIA object geometry ***
 // x-position from the coarse/fine values CalcPosX produced (its exact inverse).
 function objectX(coarse, state) {
-  return 15 * coarse + ((((state >> 4) & 0x0f) ^ 7) & 0x0f) - 1;
+  return 15 * coarse + ((state >> 4) ^ 7) - 1;
 }
 
 // NUSIZ player copies (color-clock offsets) and pixel width per bit.
@@ -426,5 +432,3 @@ export function applyKernelCollisions(mem, times) {
   if (latched(times, COLLISION.P1FB, from, end)) mem[(ZP.blockLst + last) & 0xff] |= BLOCK_FLAGS.PF_COLLIDE;
   if (latched(times, COLLISION.PPMM, from, end)) mem[store[COLLISION.PPMM]] = last;
 }
-
-export { INIT_TAB };

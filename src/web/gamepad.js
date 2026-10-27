@@ -1,6 +1,6 @@
 // Reads the first connected gamepad (standard mapping) as an Atari joystick:
 // left stick or D-pad to fly, A/B/X/Y to fire, Start for Game Reset, Back/Select
-// to pause. readGamepad() returns the current state; edges() reports the
+// to pause. readGamepad() returns the current state; gamepadEdges() reports the
 // Start/Back presses that happened since the last call.
 
 const DEADZONE = 0.45;
