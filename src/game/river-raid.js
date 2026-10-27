@@ -73,27 +73,21 @@ export class Regs {
   tya() { this.a = this.nz(this.y); }
 }
 
-// NextRandom16 ($FAC6): 16 bit LFSR
-function nextRandom16(r) {
-  r.lda(r.rd(ZP.randomHi));
-  r.asl(); r.asl(); r.asl();
-  r.eor(r.rd(ZP.randomHi));
-  r.asl();
-  r.rolMem(ZP.randomLo);
-  r.rolMem(ZP.randomHi);
+// NextRandom16 ($FAC6): 16-bit LFSR, shifting in bit 4 XOR bit 7 of randomHi
+function nextRandom16(mem) {
+  const hi = mem[ZP.randomHi], lo = mem[ZP.randomLo];
+  mem[ZP.randomLo] = (lo << 1) | (((hi >> 4) ^ (hi >> 7)) & 1);
+  mem[ZP.randomHi] = (hi << 1) | (lo >> 7);
 }
 
-// SaveSection ($FAD3): next level, save random state for restarting the section
-export function saveSection(r) {
-  r.ldx(r.rd(ZP.level));
-  r.cmp(r.x, 48);
-  if (!r.c) { /* .notMax */ } else r.ldx(48 - 2);
-  r.lda(r.rd(ZP.randomLoSave)); r.wr(ZP.randomLoSave2, r.a);
-  r.lda(r.rd(ZP.randomHiSave)); r.wr(ZP.randomHiSave2, r.a);
-  r.lda(r.rd(ZP.randomLo)); r.wr(ZP.randomLoSave, r.a);
-  r.lda(r.rd(ZP.randomHi)); r.wr(ZP.randomHiSave, r.a);
-  r.inx();
-  r.wr(ZP.level, r.x);
+// SaveSection ($FAD3): next level (after 48 it alternates between 47 and 48),
+// and save the random state for restarting the section
+export function saveSection(mem) {
+  mem[ZP.level] = mem[ZP.level] >= 48 ? 47 : mem[ZP.level] + 1;
+  mem[ZP.randomLoSave2] = mem[ZP.randomLoSave];
+  mem[ZP.randomHiSave2] = mem[ZP.randomHiSave];
+  mem[ZP.randomLoSave] = mem[ZP.randomLo];
+  mem[ZP.randomHiSave] = mem[ZP.randomHi];
 }
 
 // GetPageFlag ($FF00): a = 0 for id 0 or >= SWITCH_PAGE_ID (page $FC), else 1 (page $FD)
@@ -118,19 +112,12 @@ function loadPFPattern(r) {
   r.wr(END(ZP.PF2Lst), r.a);
 }
 
-// CalcPosX ($FDD8): a = x-position -> y = coarse value, a = fine value for HMxy
-export function calcPosX(r) {
-  r.tay(); r.iny(); r.tya();
-  r.and(0x0f);
-  r.wr(ZP.temp2, r.a);
-  r.tya(); r.lsr(); r.lsr(); r.lsr(); r.lsr();
-  r.tay();
-  r.c = 0;
-  r.adc(r.rd(ZP.temp2));
-  r.cmp(r.a, 0x0f);
-  if (r.c) { r.sbc(0x0f); r.iny(); }
-  r.eor(0x07);
-  r.asl(); r.asl(); r.asl(); r.asl();
+// CalcPosX ($FDD8): x-position -> coarse (15-pixel steps) and fine (HMxy) values
+function calcPosX(x) {
+  const p = (x + 1) & 0xff;
+  let coarse = p >> 4, fine = coarse + (p & 0x0f);
+  if (fine >= 15) { fine -= 15; coarse += 1; }
+  return { coarse, fine: ((fine ^ 7) << 4) & 0xff };
 }
 
 // .setBlockVars .. .mainLoopJmp ($F85D-$F85A): scroll by speedY and create new blocks.
@@ -191,16 +178,16 @@ export function runSetBlockVars(mem) {
           if (!straight) r.lda(BLOCK_FLAGS.PF_ROAD | BLOCK_FLAGS.PF_COLOR);
           r.wr(END(ZP.blockLst), r.a);
         }
-        nextRandom16(r); // .notLast
+        nextRandom16(mem); // .notLast
         L = 'nextBlockPart'; continue;
 
       case 'nextBlock':
         r.dec(ZP.sectionBlock);
         if (r.z) {
-          saveSection(r);
+          saveSection(mem);
           r.ldx(SECTION_BLOCKS); r.wr(ZP.sectionBlock, r.x);
         }
-        nextRandom16(r); // .contSection
+        nextRandom16(mem); // .contSection
         r.ldx(r.rd(ZP.sectionBlock)); r.dex();
         if (r.z) {
           r.wr(ZP.PF_State, r.x);
@@ -467,8 +454,7 @@ export function runSetBlockVars(mem) {
       // falls through
       case 'endNewShape':
         r.wr(END(ZP.Shape1IdLst), r.y);
-        calcPosX(r);
-        r.wr(END(ZP.XPos1Lst), r.y);
+        { const pos = calcPosX(r.a); r.wr(END(ZP.XPos1Lst), pos.coarse); r.lda(pos.fine); }
         r.ora(r.rd(END(ZP.State1Lst)));
         r.wr(END(ZP.State1Lst), r.a);
         L = 'loopNext'; continue;

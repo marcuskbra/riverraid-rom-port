@@ -9,7 +9,7 @@
 // io.colup0 and io.audio = { c0, f0, v0, c1, f1, v1 } (TIA values).
 
 import {
-  Regs, ZP as RIVER_ZP, saveSection, calcPosX, runSetBlockVars, INIT_TAB,
+  Regs, ZP as RIVER_ZP, saveSection, runSetBlockVars, INIT_TAB,
   kernelPlayfieldLines, kernelObjectLines, kernelLineMasks, collisionTimes, applyKernelCollisions,
 } from './river-raid.js';
 import { COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './data/playfield.js';
@@ -98,7 +98,7 @@ function looseJet(r) {
     if (!r.z) {
       r.bit(r.rd(END(Z.blockLst)));
       if (!r.n) break restart;
-      saveSection(r);
+      saveSection(r.m);
       break restart;
     }
     // .isEnd
@@ -146,10 +146,7 @@ export function romReset(mem, x = 0) {
 // MainLoop ($F027) up to the kernel: colors, bridge flicker, collision variables.
 function preKernel(mem, io) {
   const r = new Regs(mem);
-  r.ldx(4);
-  r.lda(r.rd(Z.fuelHi)); r.lsr(); r.lsr(); r.lsr(); r.c = 0; r.adc(69);
-  calcPosX(r); // SetPosX -> SetPosX2 ends with y = $FF
-  r.ldy(0xff);
+  r.ldy(0xff); // SetPosX2 ends with y = $FF
   r.ldx(5);
   do {
     r.lda(COLOR_TAB[r.x]);
@@ -178,13 +175,6 @@ function preKernel(mem, io) {
   }
   r.inx(); // x = 0
   r.wr(Z.temp, r.x);
-  r.ldy(r.rd(Z.playerX));
-  r.lda(r.rd(Z.reflect0));
-  if (!r.z) r.iny();
-  r.tya();
-  calcPosX(r);
-  r.lda(r.rd(Z.missileX));
-  calcPosX(r);
   r.ldy(0xff);
   for (const a of [Z.hitEnemyIdx, Z.PFCrashFlag, Z.missileFlag, Z.collidedEnemy]) r.wr(a, r.y);
 }
