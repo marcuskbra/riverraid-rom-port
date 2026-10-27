@@ -13,6 +13,18 @@
   <title>River Raid — Activision, 1982</title>
   <meta name="description" content="A browser port of Carol Shaw's River Raid for the Atari 2600, rebuilt from the original ROM instruction by instruction and checked against the real cartridge frame by frame.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%232d32b8'/%3E%3Crect width='4' height='16' fill='%236e9c42'/%3E%3Crect x='12' width='4' height='16' fill='%236e9c42'/%3E%3Cpath d='M8 4l1 3 3 2v1H9l-.5 2H10v1H6v-1h1.5L7 10H4V9l3-2z' fill='%23e8e84a'/%3E%3C/svg%3E">
+  <!-- every module the page imports, fetched in parallel instead of one import level at a time -->
+  <link rel="modulepreload" href="src/web/player.js">
+  <link rel="modulepreload" href="src/web/frame-clock.js">
+  <link rel="modulepreload" href="src/web/audio.js">
+  <link rel="modulepreload" href="src/web/gamepad.js">
+  <link rel="modulepreload" href="src/game/frame.js">
+  <link rel="modulepreload" href="src/game/screen.js">
+  <link rel="modulepreload" href="src/game/river-raid.js">
+  <link rel="modulepreload" href="src/game/status.js">
+  <link rel="modulepreload" href="src/game/palette.js">
+  <link rel="modulepreload" href="src/game/data/playfield.js">
+  <link rel="modulepreload" href="src/game/data/kernel-sprites.js">
   <style>
     /* Same landing-page system as the Dracula port, in River Raid's TIA colors. */
     :root {

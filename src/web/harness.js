@@ -2,6 +2,7 @@ import { romReset, runFrame, Z, LOW } from '../game/frame.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../game/screen.js';
 import { createTiaAudio } from './audio.js';
 import { readGamepad, gamepadEdges } from './gamepad.js';
+import { createFrameClock } from './frame-clock.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -19,7 +20,6 @@ const logicalHeight = canvas.height;
 const SCREEN_TITLE = 'title';
 const SCREEN_PLAYING = 'playing';
 const SCREEN_GAME_OVER = 'game-over';
-const frameStepMs = 1000 / 60;
 const RESET_HOLD_FRAMES = 2;
 
 // The ROM's zero page; every variable lives at its ROM address.
@@ -30,8 +30,8 @@ let display = null;
 let screenState = SCREEN_TITLE;
 let paused = false;
 let resetHold = 0;
-let lastFrameTime = 0;
-let accumulatorMs = 0;
+let dirty = true; // something on the canvas or in the HUD changed since the last render
+const tick = createFrameClock();
 
 // sound: the ROM's TIA audio registers, played by tia-sound.worklet.js
 const audio = createTiaAudio(new URL('./tia-sound.worklet.js', import.meta.url).href);
@@ -173,6 +173,7 @@ function stepGame() {
   readInputs();
   const wasOver = memory[Z.gameMode] === 0xff;
   display = runFrame(memory, io).display;
+  dirty = true;
   audio.update(io.audio);
   if (resetHold > 0) resetHold -= 1;
   if (screenState === SCREEN_PLAYING && !wasOver && memory[Z.gameMode] === 0xff) screenState = SCREEN_GAME_OVER;
@@ -182,6 +183,7 @@ function pressReset() {
   resetHold = RESET_HOLD_FRAMES;
   screenState = SCREEN_PLAYING;
   paused = false;
+  dirty = true;
   pauseButton.textContent = 'Pause';
   sendAudio();
 }
@@ -189,6 +191,7 @@ function pressReset() {
 function togglePause() {
   if (screenState !== SCREEN_PLAYING) return;
   paused = !paused;
+  dirty = true;
   pauseButton.textContent = paused ? 'Resume' : 'Pause';
   sendAudio();
 }
@@ -250,21 +253,13 @@ function render() {
 }
 
 function frame(timestamp) {
-  if (!lastFrameTime) lastFrameTime = timestamp;
-  const delta = Math.min(100, timestamp - lastFrameTime);
-  lastFrameTime = timestamp;
   pad = readGamepad();
   const edges = gamepadEdges(pad);
   if (edges.start) pressReset();
   if (edges.back) togglePause();
-  if (!paused) {
-    accumulatorMs += delta;
-    while (accumulatorMs >= frameStepMs) {
-      stepGame();
-      accumulatorMs -= frameStepMs;
-    }
-  }
-  render();
+  const frames = tick(timestamp, !paused);
+  for (let i = 0; i < frames; i += 1) stepGame();
+  if (dirty) { render(); dirty = false; }
   window.requestAnimationFrame(frame);
 }
 
@@ -300,6 +295,8 @@ resetButton.addEventListener('click', () => {
   startAudio();
   pressReset();
 });
+
+canvas.addEventListener('contextrestored', () => { dirty = true; }); // a restored canvas is blank
 
 // power on: the ROM clears RAM and runs its attract mode until RESET
 romReset(memory, 0);
