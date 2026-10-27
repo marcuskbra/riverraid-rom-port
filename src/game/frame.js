@@ -308,6 +308,151 @@ function updateGameMode(mem) {
   return false;
 }
 
+// Flying over a fuel depot fills the tank 2 units a frame (with a sound).
+function refuel(mem) {
+  let fuel = mem[Z.fuelHi] + 2, sound = 4;
+  if (fuel > 0xff) { fuel = 0xff; mem[Z.fuelLo] = 0xff; sound = 3; } // full
+  mem[Z.fuelHi] = fuel;
+  if (mem[Z.sound0Id] !== sound) {
+    mem[Z.sound0Id] = sound;
+    mem[Z.sound0Cnt] = 0x08;
+  }
+}
+
+// Returns false when the tank is empty.
+function burnFuel(mem) {
+  const lo = mem[Z.fuelLo] - 0x20;
+  if (lo < 0) {
+    if (!mem[Z.fuelHi]) return false;
+    mem[Z.fuelHi] -= 1;
+  }
+  mem[Z.fuelLo] = lo;
+  return true;
+}
+
+// Steers the jet and returns its shape. speedX accumulates dXSpeed, which
+// grows by 8 a frame while the stick is held; each carry moves one pixel.
+function moveJetX(mem, stick) {
+  if ((stick & 0x0c) === 0x0c) {
+    mem[Z.dXSpeed] = 0;
+    mem[Z.speedX] = 0;
+    return LOW.JetStraight - 1;
+  }
+  const maxed = mem[Z.dXSpeed] >= 0xf8;
+  if (!maxed) mem[Z.dXSpeed] += 8;
+  const dx = mem[Z.dXSpeed], left = stick & 0x08; // right not pressed
+  mem[Z.reflect0] = left;
+  let speed = left;
+  if (left) {
+    if (!maxed) {
+      speed = mem[Z.speedX] - dx;
+      if (speed >= 0) { mem[Z.speedX] = speed; return LOW.JetMove - 1; }
+    }
+    mem[Z.playerX] -= 1;
+    if (mem[Z.playerX]) { mem[Z.speedX] = speed; return LOW.JetMove - 1; }
+    // playerX reached 0: the ROM falls through into the right turn
+  }
+  if (!maxed) {
+    // the first frame of a right turn moves at once
+    speed = (mem[Z.joystick] & 0x80 ? 0xff : mem[Z.speedX]) + dx;
+    if (speed <= 0xff) { mem[Z.speedX] = speed; return LOW.JetMove - 1; }
+  }
+  mem[Z.playerX] += 1;
+  mem[Z.speedX] = speed;
+  return LOW.JetMove - 1;
+}
+
+// Up speeds the jet up, down slows it down and neither brings it back to 0x80.
+function changeSpeed(mem, stick) {
+  const speed = mem[Z.speedY], up = !(stick & 0x01), down = !(stick & 0x02);
+  if (up || (!down && speed < 0x80)) {
+    if (speed < 0xfe) mem[Z.speedY] = speed + 2;
+  } else if ((down || speed !== 0x80) && speed > 0x40) mem[Z.speedY] = speed - 2;
+}
+
+// Adds the points for shape id to the score. A carry into the ten thousands
+// digit gives a bonus life. Returns false when the score maxed out.
+function addScore(mem, id) {
+  let points = SCORE_TAB[id], i = 8;
+  if (points & 0x80) { // hundreds
+    points &= 0x7f;
+    if (mem[Z.scorePtr1 + 8] === LOW.Space) mem[Z.scorePtr1 + 8] = LOW.Zero;
+    i = 6;
+  }
+  for (; i >= 0; i -= 2) {
+    if (i === 2) {
+      const lives = mem[Z.livesPtr];
+      if (lives !== LOW.Nine) mem[Z.livesPtr] = lives > LOW.Nine ? LOW.One : lives + GAME.DIGIT_H;
+    }
+    const digit = mem[Z.scorePtr1 + i] === LOW.Space ? LOW.Zero : mem[Z.scorePtr1 + i];
+    const sum = (points + digit) & 0xff;
+    if (sum < LOW.MaxOut) { mem[Z.scorePtr1 + i] = sum; return true; }
+    mem[Z.scorePtr1 + i] = sum - LOW.MaxOut;
+    points = GAME.DIGIT_H; // carry 1
+  }
+  // more than 999990 points: !!!!!!, game over
+  setScorePtr1(mem, LOW.MaxOut, 10);
+  mem[Z.livesPtr] = LOW.Copyright0;
+  return false;
+}
+
+// Enemy i was hit by the jet or the missile.
+function explode(mem, i, explosionId) {
+  const id = mem[Z.Shape1IdLst + i];
+  mem[Z.Shape1IdLst + i] = explosionId;
+  mem[Z.bridgeSound] = 23;
+  if (id === GAME.ID_BRIDGE) {
+    mem[Z.bridgeExplode] = 23;
+    mem[Z.State1Lst + i] = 0xe0 | 0b001; // fixed position, two copies close
+    mem[Z.XPos1Lst + i] = 4;
+    mem[Z.sectionEnd] += 1;
+  }
+  if (addScore(mem, id)) mem[Z.missileY] = 0xb4; // disable missile
+  else looseJet(mem, 1, 0x1f);
+}
+
+// Moves the missile, or fires a new one. The jet's difficulty switch set to
+// B makes the missile follow the jet.
+function moveMissile(mem, io) {
+  const player = mem[Z.player];
+  let y = 0xb4, aim = false; // 0xb4: disabled
+  if (mem[Z.missileFlag] & 0x80) { // no collision
+    if (mem[Z.missileY] <= GAME.MAX_MISSILE) {
+      y = mem[Z.missileY] + GAME.MISSILE_SPEED;
+      aim = !((player ? io.swchb : io.swchb << 1) & 0x80);
+    } else if (!((player ? io.inpt5 : io.inpt4) & 0x80)) {
+      mem[Z.missileSound] = 0x0f;
+      y = GAME.MIN_MISSILE;
+      aim = true;
+    }
+  }
+  if (aim) mem[Z.missileX] = mem[Z.playerX] + 5;
+  mem[Z.missileY] = y;
+}
+
+// One frame of the running game: collisions, fuel, the jet, the missile.
+function play(mem, io) {
+  const enemy = mem[Z.collidedEnemy];
+  if (enemy < 0x80) {
+    const id = mem[Z.Shape1IdLst + enemy];
+    if (id > GAME.ID_BRIDGE) refuel(mem);
+    else if (id >= GAME.ID_PLANE) {
+      if (id === GAME.ID_BRIDGE) mem[Z.sectionEnd] += 1;
+      looseJet(mem, 1, 0x1f);
+      explode(mem, enemy, GAME.ID_EXPLOSION2);
+      return;
+    }
+  }
+  if (!(mem[Z.PFCrashFlag] & 0x80)) { looseJet(mem, 1, 0x1f); return; }
+  if (!burnFuel(mem)) { looseJet(mem, 2, 0x23); return; }
+  const stick = mem[Z.joystick];
+  mem[Z.shapePtr0] = moveJetX(mem, stick);
+  changeSpeed(mem, stick);
+  const hit = mem[Z.hitEnemyIdx];
+  if (hit < 0x80 && mem[Z.Shape1IdLst + hit] >= GAME.ID_PLANE) explode(mem, hit, GAME.ID_EXPLOSION1);
+  else moveMissile(mem, io);
+}
+
 // .noCrash2 ($F489) .. .mainLoopJmp: everything between two kernels.
 // Returns { reset: true } when the RESET switch restarted the game.
 function frameLogic(mem, io) {
@@ -320,209 +465,10 @@ function frameLogic(mem, io) {
   }
   const r = new Regs(mem);
   const audio = (io.audio = {});
-  const stack = [];
-  let L = updateGameMode(mem) ? 'checkCollisions' : 'doSound';
+  if (updateGameMode(mem)) play(mem, io);
+  let L = 'doSound';
   for (;;) {
     switch (L) {
-      case 'checkCollisions':
-        r.ldx(r.rd(Z.collidedEnemy));
-        if (r.n) { L = 'endCollisions'; continue; }
-        r.lda(r.rd(Z.Shape1IdLst + r.x));
-        r.cmp(r.a, GAME.ID_PLANE);
-        if (!r.c) { L = 'endCollisions'; continue; }
-        r.cmp(r.a, GAME.ID_BRIDGE);
-        if (!r.c) { L = 'noBridge'; continue; }
-        if (!r.z) { L = 'refuel'; continue; }
-        r.inc(Z.sectionEnd);
-      // falls through
-      case 'noBridge':
-        looseJet(mem, 1, 0x1f);
-        r.ldx(r.rd(Z.collidedEnemy));
-        r.lda(GAME.ID_EXPLOSION2);
-        L = 'contJetExplosion'; continue;
-      case 'refuel':
-        r.lda(r.rd(Z.fuelHi));
-        r.adc(0x01);
-        r.ldx(4);
-        if (r.c) { r.lda(0xff); r.wr(Z.fuelLo, r.a); r.ldx(3); }
-        r.wr(Z.fuelHi, r.a); // .notFull
-        r.cmp(r.x, r.rd(Z.sound0Id));
-        if (r.z) { L = 'endCollisions'; continue; }
-        r.wr(Z.sound0Id, r.x);
-        r.lda(0x08); r.wr(Z.sound0Cnt, r.a);
-      // falls through
-      case 'endCollisions':
-        r.ldx(r.rd(Z.PFCrashFlag));
-        if (r.n) { L = 'skipCrash'; continue; }
-      // falls through
-      case 'maxedOut':
-        looseJet(mem, 1, 0x1f);
-        L = 'doSound'; continue;
-      case 'skipCrash':
-        // decrease fuel
-        r.lda(r.rd(Z.fuelLo)); r.c = 1; r.sbc(0x20);
-        if (r.c) { L = 'skipDecHi'; continue; }
-        r.ldy(r.rd(Z.fuelHi));
-        if (r.z) { looseJet(mem, 2, 0x23); L = 'doSound'; continue; } // out of fuel
-        r.dec(Z.fuelHi); // .fuelOk
-      // falls through
-      case 'skipDecHi':
-        r.wr(Z.fuelLo, r.a);
-        // *** move jet left or right ***
-        r.lda(r.rd(Z.joystick)); r.tay();
-        r.and(0x0c); r.eor(0x0c);
-        if (!r.z) { L = 'leftRight'; continue; }
-        r.wr(Z.dXSpeed, r.a); r.wr(Z.speedX, r.a);
-        r.ldx(LOW.JetStraight - 1);
-        L = 'setPtr0'; continue;
-      case 'leftRight':
-        r.lda(r.rd(Z.dXSpeed)); r.c = 0; r.adc(8);
-        if (!r.c) r.wr(Z.dXSpeed, r.a);
-        r.ldx(LOW.JetMove - 1); // .maxChange
-        r.tya(); r.and(0x08);
-        r.wr(Z.reflect0, r.a);
-        if (r.z) { L = 'moveRight'; continue; }
-        if (r.c) { L = 'maxChange2'; continue; }
-        r.lda(r.rd(Z.speedX)); r.c = 1; r.sbc(r.rd(Z.dXSpeed));
-        if (r.c) { L = 'setXSpeed'; continue; }
-      // falls through
-      case 'maxChange2':
-        r.dec(Z.playerX);
-        if (!r.z) { L = 'setXSpeed'; continue; }
-      // falls through
-      case 'moveRight':
-        if (r.c) { L = 'maxChange3'; continue; }
-        r.lda(r.rd(Z.speedX));
-        r.bit(r.rd(Z.joystick));
-        if (r.n) r.lda(0xff);
-        r.adc(r.rd(Z.dXSpeed)); // .wasRight
-        if (!r.c) { L = 'setXSpeed'; continue; }
-      // falls through
-      case 'maxChange3':
-        r.inc(Z.playerX);
-      // falls through
-      case 'setXSpeed':
-        r.wr(Z.speedX, r.a);
-      // falls through
-      case 'setPtr0':
-        r.wr(Z.shapePtr0, r.x);
-        // change jet speed
-        r.ldx(r.rd(Z.speedY));
-        r.tya(); r.lsr();
-        if (r.c) { L = 'noMoveUp'; continue; }
-      // falls through
-      case 'incSpeed':
-        r.txa(); r.adc(2);
-        if (!r.c) { L = 'changeSpeed'; continue; }
-        L = 'skipChange'; continue;
-      case 'noMoveUp':
-        r.lsr();
-        if (!r.c) { L = 'noMoveDown'; continue; }
-        r.txa(); r.asl();
-        if (!r.c) { L = 'incSpeed'; continue; }
-        if (r.z) { L = 'skipChange'; continue; }
-      // falls through
-      case 'noMoveDown':
-        r.txa();
-        r.cmp(r.a, 0x41);
-        if (!r.c) { L = 'skipChange'; continue; }
-        r.sbc(2);
-      // falls through
-      case 'changeSpeed':
-        r.wr(Z.speedY, r.a);
-      // falls through
-      case 'skipChange':
-        r.ldx(r.rd(Z.hitEnemyIdx));
-        if (r.n) { L = 'skipCollisions'; continue; }
-        r.ldy(r.rd(Z.Shape1IdLst + r.x));
-        r.cmp(r.y, GAME.ID_PLANE);
-        if (!r.c) { L = 'skipCollisions'; continue; }
-        r.lda(GAME.ID_EXPLOSION1);
-      // falls through
-      case 'contJetExplosion':
-        r.ldy(r.rd(Z.Shape1IdLst + r.x));
-        r.wr(Z.Shape1IdLst + r.x, r.a);
-        r.lda(23); r.wr(Z.bridgeSound, r.a);
-        r.cmp(r.y, GAME.ID_BRIDGE);
-        if (r.z) {
-          r.wr(Z.bridgeExplode, r.a);
-          r.lda(0xe0 | 0b001); r.wr(Z.State1Lst + r.x, r.a); // fixed position, two copies close
-          r.lda(4); r.wr(Z.XPos1Lst + r.x, r.a);
-          r.inc(Z.sectionEnd);
-        }
-        // increase score
-        r.ldx(8);
-        r.lda(SCORE_TAB[r.y]);
-        if (!r.n) { L = 'loopSetPtr1'; continue; }
-        r.and(0x7f);
-        r.ldx(r.rd(Z.scorePtr1 + 8));
-        r.cmp(r.x, LOW.Space);
-        if (r.z) { r.ldx(LOW.Zero); r.wr(Z.scorePtr1 + 8, r.x); }
-        r.ldx(6); // .noSpace
-      // falls through
-      case 'loopSetPtr1':
-        stack.push(r.a);
-        r.cmp(r.x, 2);
-        if (!r.z) { L = 'notLivePtr'; continue; }
-        // bonus life
-        r.lda(r.rd(Z.livesPtr));
-        r.cmp(r.a, LOW.Nine);
-        if (r.z) { L = 'notLivePtr'; continue; }
-        if (r.c) r.lda(0xff);
-        r.adc(GAME.DIGIT_H); // .notMax
-        r.wr(Z.livesPtr, r.a);
-      // falls through
-      case 'notLivePtr':
-        r.lda(r.rd(Z.scorePtr1 + r.x)); r.c = 1; r.sbc(LOW.Space);
-        if (r.z) r.wr(Z.scorePtr1 + r.x, r.a);
-        r.lda(stack.pop()); // .noSpace2
-        r.c = 0; r.adc(r.rd(Z.scorePtr1 + r.x));
-        r.cmp(r.a, LOW.MaxOut);
-        if (!r.c) { L = 'noMaxOut'; continue; }
-        r.sbc(LOW.MaxOut);
-        r.wr(Z.scorePtr1 + r.x, r.a);
-        r.lda(GAME.DIGIT_H);
-        r.dex(); r.dex();
-        if (!r.n) { L = 'loopSetPtr1'; continue; }
-        // more than 999990 points: !!!!!!, game over
-        setScorePtr1(mem, LOW.MaxOut, 10);
-        r.lda(LOW.Copyright0); r.wr(Z.livesPtr, r.a);
-        L = 'maxedOut'; continue;
-      case 'noMaxOut':
-        r.wr(Z.scorePtr1 + r.x, r.a);
-      // falls through
-      case 'noMissile':
-        r.ldx(0xb4); // disable missile
-        L = 'directMissile'; continue;
-      case 'skipCollisions':
-        // *** move or fire missiles ***
-        r.lda(r.rd(Z.missileFlag));
-        if (!r.n) { L = 'noMissile'; continue; }
-        r.lda(r.rd(Z.missileY));
-        r.cmp(r.a, GAME.MAX_MISSILE + 1);
-        if (r.c) { L = 'checkFire'; continue; }
-        r.adc(GAME.MISSILE_SPEED);
-        r.tax();
-        r.lda(io.swchb);
-        r.ldy(r.rd(Z.player));
-        if (r.z) r.asl();
-        r.tay(); // .player1a
-        if (!r.n) { L = 'guidedMissile'; continue; }
-        L = 'directMissile'; continue;
-      case 'checkFire':
-        r.ldx(r.rd(Z.player));
-        r.lda(r.x ? io.inpt5 : io.inpt4);
-        if (r.n) { L = 'noMissile'; continue; }
-        r.ldx(0x0f); r.wr(Z.missileSound, r.x);
-        r.ldx(GAME.MIN_MISSILE);
-      // falls through
-      case 'guidedMissile':
-        r.lda(r.rd(Z.playerX)); r.c = 0; r.adc(5);
-        r.wr(Z.missileX, r.a);
-      // falls through
-      case 'directMissile':
-        r.wr(Z.missileY, r.x);
-      // falls through
       case 'doSound':
         // *** sound routines (channel 0) ***
         r.ldy(0x1c);
