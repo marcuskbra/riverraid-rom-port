@@ -33,7 +33,7 @@ export function mountPlayer(root) {
   const image = screenCtx.createImageData(SCREEN_WIDTH, SCREEN_LINES);
 
   let started = false, paused = false, muted = false, resetHold = 0;
-  let display = null, pad = null;
+  let display = null, pad = null, dirty = true, onScreen = true;
   const tick = createFrameClock();
 
   const restore = window.claude?.hot?.data;
@@ -57,6 +57,7 @@ export function mountPlayer(root) {
     io.swchbNext = undefined;
     const before = memory[Z.gameMode];
     display = runFrame(memory, io).display;
+    dirty = true;
     if (resetHold > 0) resetHold -= 1;
     audio.update(io.audio);
     const mode = memory[Z.gameMode];
@@ -82,7 +83,9 @@ export function mountPlayer(root) {
     if (edges.back && started) togglePause();
     const frames = tick(t, !paused && !document.hidden);
     for (let i = 0; i < frames; i += 1) step();
-    draw();
+    // draw only a new frame, and only when it can be seen: not behind the
+    // poster before Play, not scrolled out of view
+    if (dirty && poster.hidden && onScreen) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
 
@@ -135,6 +138,8 @@ export function mountPlayer(root) {
   canvas.addEventListener('keyup', (event) => { const control = KEYS[event.code]; if (control) held.delete(control); });
   canvas.addEventListener('blur', () => held.clear());
   canvas.addEventListener('pointerdown', () => { if (!started) play(); });
+  canvas.addEventListener('contextrestored', () => { dirty = true; }); // a restored canvas is blank
+  new IntersectionObserver(([entry]) => { onScreen = entry.isIntersecting; }).observe(canvas);
 
   // touch controls: hold to press
   root.querySelectorAll('[data-hold]').forEach((button) => {

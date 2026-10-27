@@ -30,6 +30,7 @@ let display = null;
 let screenState = SCREEN_TITLE;
 let paused = false;
 let resetHold = 0;
+let dirty = true; // something on the canvas or in the HUD changed since the last render
 const tick = createFrameClock();
 
 // sound: the ROM's TIA audio registers, played by tia-sound.worklet.js
@@ -172,6 +173,7 @@ function stepGame() {
   readInputs();
   const wasOver = memory[Z.gameMode] === 0xff;
   display = runFrame(memory, io).display;
+  dirty = true;
   audio.update(io.audio);
   if (resetHold > 0) resetHold -= 1;
   if (screenState === SCREEN_PLAYING && !wasOver && memory[Z.gameMode] === 0xff) screenState = SCREEN_GAME_OVER;
@@ -181,6 +183,7 @@ function pressReset() {
   resetHold = RESET_HOLD_FRAMES;
   screenState = SCREEN_PLAYING;
   paused = false;
+  dirty = true;
   pauseButton.textContent = 'Pause';
   sendAudio();
 }
@@ -188,6 +191,7 @@ function pressReset() {
 function togglePause() {
   if (screenState !== SCREEN_PLAYING) return;
   paused = !paused;
+  dirty = true;
   pauseButton.textContent = paused ? 'Resume' : 'Pause';
   sendAudio();
 }
@@ -255,7 +259,7 @@ function frame(timestamp) {
   if (edges.back) togglePause();
   const frames = tick(timestamp, !paused);
   for (let i = 0; i < frames; i += 1) stepGame();
-  render();
+  if (dirty) { render(); dirty = false; }
   window.requestAnimationFrame(frame);
 }
 
@@ -291,6 +295,8 @@ resetButton.addEventListener('click', () => {
   startAudio();
   pressReset();
 });
+
+canvas.addEventListener('contextrestored', () => { dirty = true; }); // a restored canvas is blank
 
 // power on: the ROM clears RAM and runs its attract mode until RESET
 romReset(memory, 0);
