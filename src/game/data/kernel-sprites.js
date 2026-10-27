@@ -15,24 +15,3 @@ export const KERNEL_SHAPE_BYTES = [
   { id: 9, aAddr: '$FEF2', bAddr: '$FEE7', a: [0x00, 0x04, 0x0E, 0x1F, 0x0E, 0x04, 0x00, 0xFE, 0xAA, 0xFE, 0x38, 0x00], b: [0x00, 0x04, 0x1F, 0x0E, 0x04, 0x04, 0x00, 0xAA, 0xFE, 0x7C, 0x00, 0x00], colorPtr: '$FF2C', colors: [0x37, 0x10, 0xDA, 0xDA, 0xDA, 0xDA, 0x00, 0x0C, 0x0C, 0x00, 0x00, 0x0C] },
   { id: 10, aAddr: '$FE5E', bAddr: '$FE69', a: [0xFE, 0xDE, 0xDE, 0xFE, 0xDE, 0xDE, 0xFE, 0xD6, 0xD6, 0xDE, 0xCE, 0xC6], b: [0xC6, 0xDE, 0xDE, 0xC6, 0xCE, 0xC6, 0xC6, 0xD6, 0xFE, 0xDE, 0xDE, 0x7C], colorPtr: '$FF37', colors: [0x0C, 0x0C, 0x0C, 0x48, 0x48, 0x48, 0x0C, 0x0C, 0x0C, 0x48, 0x48, 0x48] },
 ];
-
-// Top-down scanline rows as the kernel displays them: for y = 11..0, B[y] then A[y].
-export function kernelShapeBitmap(shapeId) {
-  const shape = KERNEL_SHAPE_BYTES[shapeId];
-  if (!shape) return null;
-  const rows = [];
-  for (let y = shape.a.length - 1; y >= 0; y -= 1) {
-    rows.push(shape.b[y].toString(2).padStart(8, '0'));
-    rows.push(shape.a[y].toString(2).padStart(8, '0'));
-  }
-  return rows;
-}
-
-// NTSC color byte for each row of kernelShapeBitmap (each pair shares one COLUP1 write).
-export function kernelShapeRowColors(shapeId) {
-  const shape = KERNEL_SHAPE_BYTES[shapeId];
-  if (!shape) return null;
-  const rows = [];
-  for (let y = shape.colors.length - 1; y >= 0; y -= 1) rows.push(shape.colors[y], shape.colors[y]);
-  return rows;
-}

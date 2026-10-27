@@ -144,7 +144,7 @@ export function romReset(mem, x = 0) {
 }
 
 // MainLoop ($F027) up to the kernel: colors, bridge flicker, collision variables.
-export function preKernel(mem, io) {
+function preKernel(mem, io) {
   const r = new Regs(mem);
   r.ldx(4);
   r.lda(r.rd(Z.fuelHi)); r.lsr(); r.lsr(); r.lsr(); r.c = 0; r.adc(69);
@@ -191,12 +191,12 @@ export function preKernel(mem, io) {
 
 // shapePtr0 points into page $FC (jet shapes, or pattern bytes after game over)
 const pageFC = (low) => (low < 0xbc ? PF_PAGE_FC[low] : JET_PAGE_TAIL[low - 0xbc]) ?? 0;
-export const jetTable = (low) => Array.from({ length: 18 }, (_, i) => pageFC((low + 1 + i) & 0xff));
+const jetTable = (low) => Array.from({ length: 18 }, (_, i) => pageFC((low + 1 + i) & 0xff));
 
 // The kernel's effect on RAM: collision results per block.
 // Also returns what the kernel displays: per-line playfield/object data, pixel
 // masks and the screensaver color transform (EOR SS_XOR, AND SS_Mask).
-export function kernel(mem) {
+function kernel(mem) {
   const pf = kernelPlayfieldLines(mem);
   const objs = kernelObjectLines(mem, KERNEL_SHAPE_BYTES, jetTable(mem[Z.shapePtr0]));
   const masks = kernelLineMasks(mem, pf, objs);
@@ -205,14 +205,14 @@ export function kernel(mem) {
 }
 
 // End of DisplayState that affects RAM (collision checks are part of kernel()).
-export function statusTail(mem) {
+function statusTail(mem) {
   mem[Z.reflect0] = 0;
   if (mem[Z.gameMode] === 0xff) mem[Z.livesPtr] = LOW.Space;
 }
 
 // .noCrash2 ($F489) .. .mainLoopJmp: everything between two kernels.
 // Returns { reset: true } when the RESET switch restarted the game.
-export function frameLogic(mem, io) {
+function frameLogic(mem, io) {
   const r = new Regs(mem);
   const audio = (io.audio = {});
   const stack = [];

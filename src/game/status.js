@@ -11,7 +11,7 @@
 
 import { DIGITS, FUEL_TABS } from './data/playfield.js';
 
-export const STATUS_SLOT_X = Object.freeze([56, 64, 72, 80, 88, 96]);
+const STATUS_SLOT_X = Object.freeze([56, 64, 72, 80, 88, 96]);
 const ZP = Object.freeze({
   frameCnt: 0x82, fuelHi: 0xb7, livesPtr: 0xc0, gameMode: 0xc6, scorePtr1: 0xcd,
   playerColor: 0xef, stateBKColor: 0xf0, statePFColor: 0xf1, zero1: 0xf3,
