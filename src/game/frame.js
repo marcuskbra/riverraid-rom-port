@@ -261,81 +261,69 @@ function moveEnemies(mem) {
   }
 }
 
+// Shifts this frame's stick into joystick (low nibble: right, left, down and
+// up, 0 = pressed; high nibble: the last frame's) and returns whether the
+// stick or the fire button is in use.
+function readJoystick(mem, io) {
+  const player = mem[Z.player];
+  const stick = player ? io.swcha & 0x0f : io.swcha >> 4;
+  mem[Z.joystick] = (mem[Z.joystick] << 4) | stick;
+  return stick !== 0x0f || !((player ? io.inpt5 : io.inpt4) & 0x80);
+}
+
+// A new jet: the river restarts at the last saved section.
+function initPlayer(mem) {
+  gameInit(mem, 23); // PF1Lst..shapePtr0+1
+  mem[END(Z.blockLst)] |= GAME.PF_ROAD;
+  mem[Z.randomLo] = mem[Z.randomLoSave];
+  mem[Z.randomHi] = mem[Z.randomHiSave];
+}
+
+// gameMode is 0 while playing and 0xff after the game. From 0x80 up it counts
+// down while the jet explodes, from 49 up while the river scrolls in, and 48
+// waits for the stick. Returns true while playing.
+function updateGameMode(mem) {
+  const mode = mem[Z.gameMode];
+  if (mode === 0) return true;
+  if (mode === 0xff) return false;
+  if (mode & 0x80) {
+    mem[Z.gameMode] = mode - 1;
+    if (mode === 0x80) {
+      // the explosion is over: the other player's turn, a new jet or the end
+      mem[Z.shapePtr0] = 0;
+      if (mem[Z.livesPtr2] !== LOW.Copyright0) swapPlayers(mem);
+      if (mem[Z.livesPtr] !== LOW.Copyright0) initPlayer(mem);
+      else finishGame(mem);
+    }
+  } else if (mode === GAME.INTRO_SCROLL + 1) {
+    // the river has scrolled in: the jet uses up a life
+    const lives = mem[Z.livesPtr];
+    if (!lives) { finishGame(mem); return false; }
+    let left = (lives - GAME.DIGIT_H) & 0xff;
+    if (left === 0) left = LOW.Copyright0; // the last jet
+    if (left === LOW.MaxOut) left = LOW.Three; // a new game (lives blank)
+    mem[Z.livesPtr] = left;
+    mem[Z.gameMode] = mode - 1;
+  } else if (mode > GAME.INTRO_SCROLL + 1) mem[Z.gameMode] = mode - 1;
+  return false;
+}
+
 // .noCrash2 ($F489) .. .mainLoopJmp: everything between two kernels.
 // Returns { reset: true } when the RESET switch restarted the game.
 function frameLogic(mem, io) {
   screensaver(mem, io);
   moveEnemies(mem);
+  if (readJoystick(mem, io)) {
+    // the stick or fire starts the jet and stops the screensaver
+    if (mem[Z.gameMode] === GAME.INTRO_SCROLL) { mem[Z.speedY] = 64; mem[Z.gameMode] = 0; }
+    mem[Z.SS_Delay] = 0;
+  }
   const r = new Regs(mem);
   const audio = (io.audio = {});
   const stack = [];
-  let L = 'joystick';
+  let L = updateGameMode(mem) ? 'checkCollisions' : 'doSound';
   for (;;) {
     switch (L) {
-      case 'joystick':
-        // *** read joystick ***
-        r.lda(io.swcha);
-        r.ldx(r.rd(Z.player));
-        if (!r.z) mult16(r);
-        r.and(0xf0); // .player1
-        r.tax();
-        r.ldy(4);
-        do { r.rol(); r.rolMem(Z.joystick); r.dey(); } while (!r.z);
-        r.cmp(r.x, 0xf0);
-        if (!r.z) { L = 'joystickMoved'; continue; }
-        r.ldx(r.rd(Z.player));
-        r.lda(r.x ? io.inpt5 : io.inpt4);
-        if (r.n) { L = 'noFire'; continue; }
-      // falls through
-      case 'joystickMoved':
-        r.lda(r.rd(Z.gameMode));
-        r.cmp(r.a, GAME.INTRO_SCROLL);
-        if (r.z) { r.lda(64); r.wr(Z.speedY, r.a); r.wr(Z.gameMode, r.y); }
-        r.wr(Z.SS_Delay, r.y); // .skipRestart
-      // falls through
-      case 'noFire':
-        r.ldx(r.rd(Z.gameMode));
-        if (r.z) { L = 'checkCollisions'; continue; }
-        if (r.n) { L = 'gameOver'; continue; }
-        r.cmp(r.x, GAME.INTRO_SCROLL + 1);
-        if (!r.c) { L = 'doSound'; continue; }
-        if (!r.z) { L = 'startGame'; continue; }
-        // decrease lives
-        r.lda(r.rd(Z.livesPtr));
-        if (r.z) { L = 'finishGame'; continue; }
-        r.sbc(GAME.DIGIT_H);
-        if (r.z) r.lda(LOW.Space + 1);
-        r.cmp(r.a, LOW.MaxOut); // LF5B5
-        if (r.z) r.lda(LOW.Three);
-        r.wr(Z.livesPtr, r.a); // LF5BB
-      // falls through
-      case 'startGame':
-        r.dec(Z.gameMode);
-        if (!r.z) { L = 'doSound'; continue; }
-      // falls through
-      case 'gameOver':
-        r.inx();
-        if (r.z) { L = 'doSound'; continue; }
-        r.dec(Z.gameMode);
-        if (r.n) { L = 'doSound'; continue; }
-        r.wr(Z.shapePtr0, r.y);
-        r.lda(r.rd(Z.livesPtr2));
-        r.cmp(r.a, LOW.Copyright0);
-        if (!r.z) swapPlayers(mem);
-        r.lda(r.rd(Z.livesPtr)); // .skipSwap
-        r.cmp(r.a, LOW.Copyright0);
-        if (!r.z) { L = 'initPlayer'; continue; }
-      // falls through
-      case 'finishGame':
-        finishGame(mem);
-        L = 'doSound'; continue;
-      case 'initPlayer':
-        gameInit(mem, 23); // PF1Lst..shapePtr0+1
-        mem[END(Z.blockLst)] |= GAME.PF_ROAD;
-        r.lda(r.rd(Z.randomLoSave)); r.wr(Z.randomLo, r.a);
-        r.lda(r.rd(Z.randomHiSave)); r.wr(Z.randomHi, r.a);
-        L = 'doSound'; continue;
-
       case 'checkCollisions':
         r.ldx(r.rd(Z.collidedEnemy));
         if (r.n) { L = 'endCollisions'; continue; }
