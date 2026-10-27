@@ -30,7 +30,11 @@ export function drawScreen(display, io, image) {
     const p1Color = tint(objs[s].colup1);
     const m = masks[s];
     for (let x = 0; x < SCREEN_WIDTH; x += 1) {
-      put(s, x, (m.p0[x] || m.m0[x]) ? p0 : m.p1[x] ? p1Color : m.pf[x] ? pfColor : bg);
+      let color = bg;
+      if (m.p0[x] || m.m0[x]) color = p0;
+      else if (m.p1[x]) color = p1Color;
+      else if (m.pf[x]) color = pfColor;
+      put(s, x, color);
     }
   }
   const lastPf = masks[KERNEL_LINES - 1].pf, lastColor = tint(pf[KERNEL_LINES - 1].colupf);

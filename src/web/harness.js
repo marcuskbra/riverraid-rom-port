@@ -186,6 +186,13 @@ function pressReset() {
   sendAudio();
 }
 
+function togglePause() {
+  if (screenState !== SCREEN_PLAYING) return;
+  paused = !paused;
+  pauseButton.textContent = paused ? 'Resume' : 'Pause';
+  sendAudio();
+}
+
 // *** drawing ***
 
 function drawKernel() {
@@ -215,11 +222,9 @@ function renderHud() {
   fuelEl.textContent = `${fuelPercent()}%`;
   livesEl.textContent = String(livesCount());
   sectionEl.textContent = String(memory[Z.level]);
-  statusEl.textContent = screenState === SCREEN_TITLE
-    ? 'title'
-    : paused
-      ? 'paused'
-      : gameModeLabel();
+  if (screenState === SCREEN_TITLE) statusEl.textContent = 'title';
+  else if (paused) statusEl.textContent = 'paused';
+  else statusEl.textContent = gameModeLabel();
   debugEl.textContent = `level ${memory[Z.level]} · block ${memory[Z.sectionBlock]} · offset ${memory[Z.blockOffset]} · playerX ${memory[Z.playerX]} · speedY ${memory[Z.speedY]}`;
 }
 
@@ -251,11 +256,7 @@ function frame(timestamp) {
   pad = readGamepad();
   const edges = gamepadEdges(pad);
   if (edges.start) pressReset();
-  if (edges.back && screenState === SCREEN_PLAYING) {
-    paused = !paused;
-    pauseButton.textContent = paused ? 'Resume' : 'Pause';
-    sendAudio();
-  }
+  if (edges.back) togglePause();
   if (!paused) {
     accumulatorMs += delta;
     while (accumulatorMs >= frameStepMs) {
@@ -276,11 +277,7 @@ window.addEventListener('keydown', (event) => {
     return;
   }
   pressed.add(event.code);
-  if (event.code === 'KeyP' && screenState === SCREEN_PLAYING) {
-    paused = !paused;
-    pauseButton.textContent = paused ? 'Resume' : 'Pause';
-    sendAudio();
-  }
+  if (event.code === 'KeyP') togglePause();
   if (event.code === 'KeyR') pressReset();
 });
 
@@ -296,10 +293,7 @@ window.addEventListener('keyup', (event) => {
 
 pauseButton.addEventListener('click', () => {
   startAudio();
-  if (screenState !== SCREEN_PLAYING) return;
-  paused = !paused;
-  pauseButton.textContent = paused ? 'Resume' : 'Pause';
-  sendAudio();
+  togglePause();
 });
 
 resetButton.addEventListener('click', () => {

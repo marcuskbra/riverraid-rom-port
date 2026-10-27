@@ -80,7 +80,7 @@ export function mountPlayer(root) {
     last = t;
     pad = readGamepad();
     const edges = gamepadEdges(pad);
-    if (edges.start) (started ? pressReset() : play());
+    if (edges.start) resetOrPlay();
     if (edges.back && started) togglePause();
     if (!paused && !document.hidden) {
       acc += dt;
@@ -106,6 +106,11 @@ export function mountPlayer(root) {
     silence();
   }
 
+  function resetOrPlay() {
+    if (started) pressReset();
+    else play();
+  }
+
   function togglePause() {
     paused = !paused;
     pauseButton.textContent = paused ? 'Resume' : 'Pause';
@@ -122,12 +127,12 @@ export function mountPlayer(root) {
   playButton.addEventListener('click', play);
   pauseButton.addEventListener('click', () => { if (started) togglePause(); });
   muteButton.addEventListener('click', toggleMute);
-  root.querySelector('[data-reset]').addEventListener('click', () => { if (started) pressReset(); else play(); });
+  root.querySelector('[data-reset]').addEventListener('click', resetOrPlay);
 
   canvas.addEventListener('keydown', (event) => {
     const control = KEYS[event.code];
     if (control) { event.preventDefault(); held.add(control); }
-    if (event.code === 'Enter') { event.preventDefault(); started ? pressReset() : play(); }
+    if (event.code === 'Enter') { event.preventDefault(); resetOrPlay(); }
     if (event.code === 'KeyP') togglePause();
     if (event.code === 'KeyM') toggleMute();
   });
@@ -151,7 +156,10 @@ export function mountPlayer(root) {
     button.addEventListener('lostpointercapture', up);
   });
 
-  document.addEventListener('visibilitychange', () => (document.hidden ? audio.suspend() : audio.resume()));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) audio.suspend();
+    else audio.resume();
+  });
 
   if (restore?.memory) { started = true; poster.hidden = true; }
   step();

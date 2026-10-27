@@ -11,10 +11,10 @@
 // io.colup0 and io.audio = { c0, f0, v0, c1, f1, v1 } (TIA values).
 
 import {
-  ZP as RIVER_ZP, saveSection, runSetBlockVars, INIT_TAB,
+  ZP as RIVER_ZP, saveSection, runSetBlockVars,
   kernelPlayfieldLines, kernelObjectLines, kernelLineMasks, collisionTimes, applyKernelCollisions,
 } from './river-raid.js';
-import { COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './data/playfield.js';
+import { INIT_TAB, COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './data/playfield.js';
 import { KERNEL_SHAPE_BYTES } from './data/kernel-sprites.js';
 import { statusLines } from './status.js';
 
@@ -330,7 +330,7 @@ function changeSpeed(mem, stick) {
   const speed = mem[Z.speedY], up = !(stick & 0x01), down = !(stick & 0x02);
   if (up || (!down && speed < 0x80)) {
     if (speed < 0xfe) mem[Z.speedY] = speed + 2;
-  } else if ((down || speed !== 0x80) && speed > 0x40) mem[Z.speedY] = speed - 2;
+  } else if ((down || speed > 0x80) && speed > 0x40) mem[Z.speedY] = speed - 2;
 }
 
 // Adds the points for shape id to the score. A carry into the ten thousands
