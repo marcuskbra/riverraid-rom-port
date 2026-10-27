@@ -74,147 +74,98 @@ class Regs {
 
 const mult16 = (r) => { r.asl(); r.asl(); r.asl(); r.asl(); };
 
-// SetScorePtrs ($FF0C) / SetScorePtr1 ($FF1C)
-function setScorePtr1(r) {
-  do { r.wr(Z.scorePtr1 + r.x, r.a); r.dex(); r.dex(); } while (!r.n);
-}
-function setScorePtrs(r) {
-  r.wr(Z.scorePtr1 + 10, r.a);
-  r.wr(Z.scorePtr2 + 10, r.a);
-  r.lda(LOW.Space);
-  r.ldx(8);
-  do { r.wr(Z.scorePtr2 + r.x, r.a); r.dex(); r.dex(); } while (!r.n);
-  r.ldx(8);
-  setScorePtr1(r);
+// SetScorePtr1 ($FF1C): scorePtr1 bytes from offset `from` down to 0, every other byte
+function setScorePtr1(mem, value, from) {
+  for (let i = from; i >= 0; i -= 2) mem[Z.scorePtr1 + i] = value;
 }
 
-// GameInit ($FA8F): x = number of InitTab bytes - 1 (22 or 38)
-function gameInit(r) {
-  do { r.lda(INIT_TAB[r.x]); r.wr(Z.PF1Lst + r.x, r.a); r.dex(); } while (!r.n);
-  r.lda(0);
-  r.ldx(30);
-  do { r.wr(Z.dXSpeed + r.x, r.a); r.dex(); } while (!r.n);
-  r.ldx(5);
-  r.ldy(1); // PF1_PAGE_FLAG
-  r.lda(r.rd(Z.level)); r.lsr();
-  if (r.c) r.ldy(1 | GAME.PF_COLOR);
-  do { r.wr(Z.blockLst + r.x, r.y); r.dex(); } while (!r.n);
+// SetScorePtrs ($FF0C): variation digit (scorePtr1/2 + 10), blank scores
+function setScorePtrs(mem, digit) {
+  mem[Z.scorePtr1 + 10] = digit;
+  mem[Z.scorePtr2 + 10] = digit;
+  for (let i = 0; i <= 8; i += 2) mem[Z.scorePtr2 + i] = LOW.Space;
+  setScorePtr1(mem, LOW.Space, 8);
 }
 
-// SwapPlayers ($FFC8 area)
-function swapPlayers(r) {
-  r.lda(r.rd(Z.gameVariation));
-  if (r.z) return;
-  r.eor(r.rd(Z.player)); r.wr(Z.player, r.a);
-  r.ldx(3);
-  do {
-    r.lda(r.rd(Z.player1State + r.x)); r.ldy(r.rd(Z.player2State + r.x));
-    r.wr(Z.player2State + r.x, r.a); r.wr(Z.player1State + r.x, r.y);
-    r.dex();
-  } while (!r.n);
-  r.ldx(12 - 2);
-  do {
-    r.lda(r.rd(Z.scorePtr1 + r.x)); r.ldy(r.rd(Z.scorePtr2 + r.x));
-    r.wr(Z.scorePtr2 + r.x, r.a); r.wr(Z.scorePtr1 + r.x, r.y);
-    r.dex(); r.dex();
-  } while (!r.n);
+// GameInit ($FA8F): count = number of InitTab bytes (23 for a new jet, 39 at reset)
+function gameInit(mem, count) {
+  mem.set(INIT_TAB.slice(0, count), Z.PF1Lst);
+  mem.fill(0, Z.dXSpeed, Z.dXSpeed + 31);
+  mem.fill(mem[Z.level] & 1 ? 1 | GAME.PF_COLOR : 1, Z.blockLst, Z.blockLst + 6); // PF1_PAGE_FLAG
 }
 
-function contFinish(r) {
-  r.wr(Z.gameMode, r.a);
-  r.lda(GAME.NUM_LINES + 20);
-  r.wr(Z.missileY, r.a);
+// SwapPlayers ($FFC8 area): two-player games swap state, lives and score
+function swapPlayers(mem) {
+  const variation = mem[Z.gameVariation];
+  if (!variation) return;
+  mem[Z.player] ^= variation;
+  const swap = (a, b) => { const t = mem[a]; mem[a] = mem[b]; mem[b] = t; };
+  for (let i = 0; i < 4; i += 1) swap(Z.player1State + i, Z.player2State + i);
+  for (let i = 0; i <= 10; i += 2) swap(Z.scorePtr1 + i, Z.scorePtr2 + i);
 }
 
-// LooseJet ($FF5C): a = sound id, y = sound count
-function looseJet(r) {
-  r.wr(Z.sound0Cnt, r.y);
-  r.wr(Z.sound0Id, r.a);
-  r.lda(r.rd(Z.blockLst)); r.eor(r.rd(END(Z.blockLst))); r.and(GAME.PF_COLOR);
-  restart: if (!r.z) {
-    r.lda(r.rd(Z.sectionEnd));
-    if (!r.z) {
-      r.bit(r.rd(END(Z.blockLst)));
-      if (!r.n) break restart;
-      saveSection(r.m);
-      break restart;
+function contFinish(mem, mode) {
+  mem[Z.gameMode] = mode;
+  mem[Z.missileY] = GAME.NUM_LINES + 20;
+}
+
+// LooseJet ($FF5C): start the explosion sound, fix the restart point when a
+// section boundary is on screen, and start the jet explosion
+function looseJet(mem, soundId, soundCnt) {
+  mem[Z.sound0Cnt] = soundCnt;
+  mem[Z.sound0Id] = soundId;
+  if ((mem[Z.blockLst] ^ mem[END(Z.blockLst)]) & GAME.PF_COLOR) {
+    const road = mem[END(Z.blockLst)] & GAME.PF_ROAD;
+    if (mem[Z.sectionEnd]) {
+      if (road) saveSection(mem);
+    } else if (!road) {
+      // .isEnd
+      const level = mem[Z.level] - 1;
+      mem[Z.level] = level === GAME.MAX_LEVEL - 2 ? GAME.MAX_LEVEL : level;
+      mem[Z.randomLoSave] = mem[Z.randomLoSave2];
+      mem[Z.randomHiSave] = mem[Z.randomHiSave2];
     }
-    // .isEnd
-    r.bit(r.rd(END(Z.blockLst)));
-    if (r.n) break restart;
-    r.ldx(r.rd(Z.level)); r.dex();
-    r.cmp(r.x, GAME.MAX_LEVEL - 2);
-    if (r.z) r.ldx(GAME.MAX_LEVEL);
-    r.wr(Z.level, r.x);
-    r.lda(r.rd(Z.randomLoSave2)); r.wr(Z.randomLoSave, r.a);
-    r.lda(r.rd(Z.randomHiSave2)); r.wr(Z.randomHiSave, r.a);
   }
-  r.lda(LOW.JetExplode - 1);
-  r.wr(Z.shapePtr0, r.a);
-  contFinish(r);
+  mem[Z.shapePtr0] = LOW.JetExplode - 1;
+  contFinish(mem, LOW.JetExplode - 1);
 }
 
 // FinishGame
-function finishGame(r) {
-  r.lda(0xff);
-  r.wr(Z.frameCnt, r.a);
-  contFinish(r);
+function finishGame(mem) {
+  mem[Z.frameCnt] = 0xff;
+  contFinish(mem, 0xff);
 }
 
 // Reset ($F004) with x = first address to clear (0 at power-on, $F7 for the RESET switch)
 export function romReset(mem, x = 0) {
-  const r = new Regs(mem);
-  r.lda(0);
-  r.ldx(x);
-  do { if (r.x >= 0x80) r.wr(r.x, r.a); r.inx(); } while (!r.z);
-  setScorePtrs(r);
-  r.lda(0xfb); // >Zero
-  r.ldx(12 - 1);
-  setScorePtr1(r);
-  r.ldx(38); // colorPtr+1-PF1Lst
-  gameInit(r);
-  r.lda(r.rd(Z.random));
-  if (!r.z) return;
-  r.inc(Z.random);
-  r.wr(Z.livesPtr, r.a);
-  r.lda(LOW.One);
-  r.wr(Z.scorePtr1 + 10, r.a);
+  mem.fill(0, Math.max(x, 0x80), 0x100);
+  setScorePtrs(mem, 0);
+  for (let i = 1; i < 12; i += 2) mem[Z.scorePtr1 + i] = 0xfb; // >Zero
+  gameInit(mem, 39);
+  if (mem[Z.random]) return;
+  mem[Z.random] = 1;
+  mem[Z.livesPtr] = 0;
+  mem[Z.scorePtr1 + 10] = LOW.One;
 }
 
 // MainLoop ($F027) up to the kernel: colors, bridge flicker, collision variables.
 function preKernel(mem, io) {
-  const r = new Regs(mem);
-  r.ldy(0xff); // SetPosX2 ends with y = $FF
-  r.ldx(5);
-  do {
-    r.lda(COLOR_TAB[r.x]);
-    r.eor(r.rd(Z.SS_XOR)); r.and(r.rd(Z.SS_Mask));
-    r.wr(Z.PFcolor + r.x, r.a);
-    if (r.x === 4) io.colubk = r.a;
-    if (r.x === 1) io.colup0 = r.a;
-    r.dex();
-  } while (!r.n);
-  r.tay();
-  r.lda(r.rd(Z.scorePtr1 + 10));
-  r.cmp(r.a, LOW.Two);
-  if (!r.z) {
-    r.lda(io.swchb); r.lsr();
-    if (r.c) {
-      r.lda(r.rd(Z.player));
-      if (!r.z) { r.wr(Z.playerColor, r.y); io.colup0 = r.y; }
-    }
+  const ssXor = mem[Z.SS_XOR], ssMask = mem[Z.SS_Mask];
+  COLOR_TAB.forEach((color, i) => { mem[Z.PFcolor + i] = (color ^ ssXor) & ssMask; });
+  io.colubk = mem[Z.PFcolor + 4];
+  io.colup0 = mem[Z.playerColor];
+  // player 2's jet takes the PFcolor value, unless the variation digit is 2 or RESET is pressed
+  if (mem[Z.scorePtr1 + 10] !== LOW.Two && io.swchb & 1 && mem[Z.player]) {
+    mem[Z.playerColor] = mem[Z.PFcolor];
+    io.colup0 = mem[Z.PFcolor];
   }
   // flicker background when a bridge explodes
-  r.lda(r.rd(Z.bridgeExplode));
-  if (!r.z) {
-    r.dec(Z.bridgeExplode);
-    r.lsr();
-    if (r.c) { r.lda(GAME.DARK_RED); r.and(r.rd(Z.SS_Mask)); io.colubk = r.a; }
+  const bridge = mem[Z.bridgeExplode];
+  if (bridge) {
+    mem[Z.bridgeExplode] = bridge - 1;
+    if (bridge & 1) io.colubk = GAME.DARK_RED & ssMask;
   }
-  r.inx(); // x = 0
-  r.wr(Z.temp, r.x);
-  r.ldy(0xff);
-  for (const a of [Z.hitEnemyIdx, Z.PFCrashFlag, Z.missileFlag, Z.collidedEnemy]) r.wr(a, r.y);
+  for (const a of [Z.hitEnemyIdx, Z.PFCrashFlag, Z.missileFlag, Z.collidedEnemy]) mem[a] = 0xff;
 }
 
 // shapePtr0 points into page $FC (jet shapes, or pattern bytes after game over)
@@ -253,7 +204,7 @@ function frameLogic(mem, io) {
         r.dec(Z.frameCnt);
         if (!r.z) { L = 'skipSS_Delay'; continue; }
         r.ldx(r.rd(Z.gameMode)); r.inx();
-        if (r.z) swapPlayers(r);
+        if (r.z) swapPlayers(mem);
         r.inc(Z.SS_Delay); // .skipInit
         if (!r.z) { L = 'skipSS_Delay'; continue; }
         { const v = r.rd(Z.SS_Delay); r.wr(Z.SS_Delay, r.nz((v >> 1) | 0x80)); r.c = v & 1; } // SEC / ROR
@@ -405,18 +356,17 @@ function frameLogic(mem, io) {
         r.wr(Z.shapePtr0, r.y);
         r.lda(r.rd(Z.livesPtr2));
         r.cmp(r.a, LOW.Copyright0);
-        if (!r.z) swapPlayers(r);
+        if (!r.z) swapPlayers(mem);
         r.lda(r.rd(Z.livesPtr)); // .skipSwap
         r.cmp(r.a, LOW.Copyright0);
         if (!r.z) { L = 'initPlayer'; continue; }
       // falls through
       case 'finishGame':
-        finishGame(r);
+        finishGame(mem);
         L = 'doSound'; continue;
       case 'initPlayer':
-        r.ldx(22); // shapePtr0+2-PF1Lst
-        gameInit(r);
-        r.tya(); r.ora(GAME.PF_ROAD); r.wr(END(Z.blockLst), r.a);
+        gameInit(mem, 23); // PF1Lst..shapePtr0+1
+        mem[END(Z.blockLst)] |= GAME.PF_ROAD;
         r.lda(r.rd(Z.randomLoSave)); r.wr(Z.randomLo, r.a);
         r.lda(r.rd(Z.randomHiSave)); r.wr(Z.randomHi, r.a);
         L = 'doSound'; continue;
@@ -433,8 +383,7 @@ function frameLogic(mem, io) {
         r.inc(Z.sectionEnd);
       // falls through
       case 'noBridge':
-        r.ldy(0x1f); r.lda(1);
-        looseJet(r);
+        looseJet(mem, 1, 0x1f);
         r.ldx(r.rd(Z.collidedEnemy));
         r.lda(GAME.ID_EXPLOSION2);
         L = 'contJetExplosion'; continue;
@@ -454,17 +403,14 @@ function frameLogic(mem, io) {
         if (r.n) { L = 'skipCrash'; continue; }
       // falls through
       case 'maxedOut':
-        r.ldy(0x1f); r.lda(1);
-      // falls through
-      case 'looseJet':
-        looseJet(r);
+        looseJet(mem, 1, 0x1f);
         L = 'doSound'; continue;
       case 'skipCrash':
         // decrease fuel
         r.lda(r.rd(Z.fuelLo)); r.c = 1; r.sbc(0x20);
         if (r.c) { L = 'skipDecHi'; continue; }
         r.ldy(r.rd(Z.fuelHi));
-        if (r.z) { r.lda(2); r.ldy(0x23); L = 'looseJet'; continue; } // out of fuel
+        if (r.z) { looseJet(mem, 2, 0x23); L = 'doSound'; continue; } // out of fuel
         r.dec(Z.fuelHi); // .fuelOk
       // falls through
       case 'skipDecHi':
@@ -586,8 +532,7 @@ function frameLogic(mem, io) {
         r.dex(); r.dex();
         if (!r.n) { L = 'loopSetPtr1'; continue; }
         // more than 999990 points: !!!!!!, game over
-        r.lda(LOW.MaxOut); r.ldx(12 - 2);
-        setScorePtr1(r);
+        setScorePtr1(mem, LOW.MaxOut, 10);
         r.lda(LOW.Copyright0); r.wr(Z.livesPtr, r.a);
         L = 'maxedOut'; continue;
       case 'noMaxOut':
@@ -730,8 +675,8 @@ function frameLogic(mem, io) {
         r.wr(Z.SS_Delay, r.a);
         r.wr(Z.player, r.a);
         r.asl(); r.asl(); r.asl(); r.adc(GAME.DIGIT_H);
-        setScorePtrs(r);
-        finishGame(r);
+        setScorePtrs(mem, r.a);
+        finishGame(mem);
         r.ldy(0x1e);
       // falls through
       case 'noSelect':
