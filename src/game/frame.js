@@ -189,125 +189,90 @@ function statusTail(mem) {
   if (mem[Z.gameMode] === 0xff) mem[Z.livesPtr] = LOW.Space;
 }
 
+// Frame counter, screensaver colors and the random byte.
+function screensaver(mem, io) {
+  mem[Z.frameCnt] -= 1;
+  if (mem[Z.frameCnt] === 0) {
+    if (mem[Z.gameMode] === 0xff) swapPlayers(mem); // game over: show the other player's score
+    mem[Z.SS_Delay] += 1;
+    if (mem[Z.SS_Delay] === 0) mem[Z.SS_Delay] = 0x80; // the screensaver stays on
+  }
+  // the B/W switch keeps the luminance bits only; the screensaver also clears
+  // a luminance bit and shifts the colors by SS_Delay
+  let mask = io.swchb & 0x08 ? 0xff : 0x0f, xor = 0;
+  if (mem[Z.SS_Delay] & 0x80) { mask &= 0xf7; xor = mem[Z.SS_Delay]; }
+  mem[Z.SS_XOR] = xor << 1;
+  mem[Z.SS_Mask] = mask;
+  const random = mem[Z.random];
+  mem[Z.random] = (random << 1) | (((random >> 4) ^ (random >> 7)) & 1);
+}
+
+// Moves enemy i one pixel, working directly on its positioning values:
+// XPos1Lst holds the coarse position and the top nibble of State1Lst the fine one.
+function moveEnemyX(mem, i) {
+  const state = mem[Z.State1Lst + i];
+  let coarse = mem[Z.XPos1Lst + i], fine = (state >> 4) ^ 7;
+  if (state & GAME.DIRECTION) {
+    fine -= 1;
+    if (fine < 0) {
+      fine = 14;
+      coarse = (coarse - 1) & 0xff;
+      if (coarse & 0x80) { coarse = 10; fine = 9; } // wrap to the right edge
+    }
+  } else {
+    fine += 1;
+    if (fine >= 15) { fine -= 15; coarse = (coarse + 1) & 0xff; }
+    if (coarse >= 10 && fine >= 10) { coarse = 0; fine = 0; } // wrap to the left edge
+  }
+  mem[Z.XPos1Lst + i] = coarse;
+  mem[Z.State1Lst + i] = ((fine ^ 7) << 4) | (state & 0x0f);
+}
+
+// Animates the enemies and moves them (from level 2 on, while the game runs).
+function moveEnemies(mem) {
+  const frame = mem[Z.frameCnt];
+  // every 16 frames a random block's enemy starts moving
+  if ((frame & 0x0f) === 0) {
+    const i = mem[Z.random] & 0x07;
+    mem[Z.blockLst + (i >= 5 ? i - 5 : i)] |= GAME.ENEMY_MOVE;
+  }
+  const moving = mem[Z.gameMode] === 0 && mem[Z.level] >= 2;
+  for (let i = 5; i >= 0; i -= 1) {
+    let id = mem[Z.Shape1IdLst + i];
+    // explosions advance every 16 frames, the other animations every other frame
+    if (id < GAME.ID_SHIP && (frame & (id < GAME.ID_PLANE ? 0x0f : 0x01)) === 0) {
+      id = ANIMATE_ID_TAB[id];
+      mem[Z.Shape1IdLst + i] = id;
+    }
+    if (moving && id === GAME.ID_PLANE) moveEnemyX(mem, i);
+    else if (moving && id > GAME.ID_PLANE && id < GAME.ID_BRIDGE && !(frame & 1)) {
+      const block = mem[Z.blockLst + i];
+      if (block & GAME.ENEMY_MOVE) {
+        // turn around on touching the bank; PATROL stops another turn until it is clear
+        if (!(block & GAME.PF_COLLIDE)) mem[Z.blockLst + i] = block & ~GAME.PATROL;
+        else if (!(block & GAME.PATROL)) {
+          mem[Z.State1Lst + i] ^= GAME.DIRECTION;
+          mem[Z.blockLst + i] = block | GAME.PATROL;
+        }
+        moveEnemyX(mem, i);
+      }
+    }
+    mem[Z.blockLst + i] &= ~GAME.PF_COLLIDE;
+  }
+}
+
 // .noCrash2 ($F489) .. .mainLoopJmp: everything between two kernels.
 // Returns { reset: true } when the RESET switch restarted the game.
 function frameLogic(mem, io) {
+  screensaver(mem, io);
+  moveEnemies(mem);
   const r = new Regs(mem);
   const audio = (io.audio = {});
   const stack = [];
-  const ror = () => { const c = r.c; r.c = r.a & 1; r.a = r.nz((r.a >> 1) | (c << 7)); };
-  let L = 'start';
+  let L = 'joystick';
   for (;;) {
     switch (L) {
-      case 'start':
-        // *** update framecounter, check for screensaver ***
-        r.dec(Z.frameCnt);
-        if (!r.z) { L = 'skipSS_Delay'; continue; }
-        r.ldx(r.rd(Z.gameMode)); r.inx();
-        if (r.z) swapPlayers(mem);
-        r.inc(Z.SS_Delay); // .skipInit
-        if (!r.z) { L = 'skipSS_Delay'; continue; }
-        { const v = r.rd(Z.SS_Delay); r.wr(Z.SS_Delay, r.nz((v >> 1) | 0x80)); r.c = v & 1; } // SEC / ROR
-      // falls through
-      case 'skipSS_Delay':
-        r.ldy(0xff);
-        r.lda(io.swchb); r.and(0x08);
-        if (r.z) r.ldy(0x0f);
-        r.tya(); // .colorMode
-        r.ldy(0);
-        r.bit(r.rd(Z.SS_Delay));
-        if (r.n) { r.and(0xf7); r.ldy(r.rd(Z.SS_Delay)); }
-        r.wr(Z.SS_XOR, r.y); // .noScreenSaver
-        { const v = r.rd(Z.SS_XOR); r.c = v >> 7; r.wr(Z.SS_XOR, r.nz(v << 1)); }
-        r.wr(Z.SS_Mask, r.a);
-        // *** randomly start movement of enemies ***
-        r.lda(r.rd(Z.random)); r.asl(); r.asl(); r.asl(); r.eor(r.rd(Z.random)); r.asl();
-        r.rolMem(Z.random);
-        r.lda(r.rd(Z.frameCnt)); r.and(0x0f);
-        if (r.z) {
-          r.lda(r.rd(Z.random)); r.and(0x07);
-          r.cmp(r.a, 5);
-          if (r.c) r.sbc(5);
-          r.tax(); // .inBound
-          r.lda(r.rd(Z.blockLst + r.x)); r.ora(GAME.ENEMY_MOVE); r.wr(Z.blockLst + r.x, r.a);
-        }
-        // *** animate and move the enemy objects ***
-        r.ldx(5);
-      // falls through
-      case 'loopEnemies':
-        r.ldy(r.rd(Z.Shape1IdLst + r.x));
-        r.cmp(r.y, GAME.ID_SHIP);
-        if (r.c) { L = 'skipAnimate'; continue; }
-        r.lda(0x01);
-        r.cmp(r.y, GAME.ID_PLANE);
-        if (!r.c) r.lda(0x0f);
-        r.and(r.rd(Z.frameCnt)); // .fastAnimation
-        if (!r.z) { L = 'skipAnimate'; continue; }
-        r.lda(ANIMATE_ID_TAB[r.y]); r.wr(Z.Shape1IdLst + r.x, r.a); r.tay();
-      // falls through
-      case 'skipAnimate':
-        r.lda(r.rd(Z.gameMode));
-        if (!r.z) { L = 'skipMoveEnemy'; continue; }
-        r.lda(r.rd(Z.level)); r.lsr();
-        if (r.z) { L = 'skipMoveEnemy'; continue; }
-        r.cmp(r.y, GAME.ID_PLANE);
-        if (r.z) { L = 'xMoveEnemy'; continue; }
-        if (!r.c) { L = 'skipMoveEnemy'; continue; }
-        r.cmp(r.y, GAME.ID_BRIDGE);
-        if (r.c) { L = 'skipMoveEnemy'; continue; }
-        r.lda(r.rd(Z.frameCnt)); ror();
-        if (r.c) { L = 'skipMoveEnemy'; continue; }
-        r.lda(r.rd(Z.blockLst + r.x)); r.asl();
-        if (!r.n) { L = 'skipMoveEnemy'; continue; }
-        r.asl();
-        if (!r.n) { L = 'noPFCollision'; continue; }
-        r.asl();
-        if (r.n) { L = 'xMoveEnemy'; continue; }
-        r.lda(r.rd(Z.State1Lst + r.x)); r.eor(GAME.DIRECTION); r.wr(Z.State1Lst + r.x, r.a);
-        r.lda(r.rd(Z.blockLst + r.x)); r.ora(GAME.PATROL);
-        L = 'endChangeDir'; continue;
-      case 'noPFCollision':
-        r.lda(r.rd(Z.blockLst + r.x)); r.and(~GAME.PATROL & 0xff);
-      // falls through
-      case 'endChangeDir':
-        r.wr(Z.blockLst + r.x, r.a);
-      // falls through
-      case 'xMoveEnemy':
-        // move enemy one pixel, working directly on the positioning values
-        r.ldy(r.rd(Z.XPos1Lst + r.x));
-        r.lda(r.rd(Z.State1Lst + r.x)); r.lsr(); r.lsr(); r.lsr(); r.lsr();
-        r.eor(0x07);
-        if (r.c) { L = 'xMoveLeft'; continue; }
-        r.adc(1);
-        r.cmp(r.a, 15);
-        if (r.c) { r.sbc(15); r.iny(); }
-        r.cmp(r.y, 10); // .skipRightIny
-        if (!r.c) { L = 'contMoveX'; continue; }
-        r.cmp(r.a, 10);
-        if (!r.c) { L = 'contMoveX'; continue; }
-        r.ldy(0); r.tya();
-        L = 'contMoveX'; continue;
-      case 'xMoveLeft':
-        r.sbc(1);
-        if (r.c) { L = 'contMoveX2'; continue; }
-        r.adc(15);
-        r.dey();
-        if (!r.n) { L = 'contMoveX'; continue; }
-        r.ldy(10); r.lda(9);
-      // falls through
-      case 'contMoveX':
-        r.wr(Z.XPos1Lst + r.x, r.y);
-      // falls through
-      case 'contMoveX2':
-        r.eor(0x07);
-        mult16(r);
-        r.eor(r.rd(Z.State1Lst + r.x)); r.and(0xf0); r.eor(r.rd(Z.State1Lst + r.x));
-        r.wr(Z.State1Lst + r.x, r.a);
-      // falls through
-      case 'skipMoveEnemy':
-        r.lda(r.rd(Z.blockLst + r.x)); r.and(~GAME.PF_COLLIDE & 0xff); r.wr(Z.blockLst + r.x, r.a);
-        r.dex();
-        if (!r.n) { L = 'loopEnemies'; continue; }
+      case 'joystick':
         // *** read joystick ***
         r.lda(io.swcha);
         r.ldx(r.rd(Z.player));
