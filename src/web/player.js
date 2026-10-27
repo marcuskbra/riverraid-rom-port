@@ -6,8 +6,8 @@ import { romReset, runFrame, Z } from '../game/frame.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../game/screen.js';
 import { createTiaAudio } from './audio.js';
 import { readGamepad, gamepadEdges } from './gamepad.js';
+import { createFrameClock } from './frame-clock.js';
 
-const FRAME_MS = 1000 / 60;
 const KEYS = {
   ArrowRight: 'right', KeyD: 'right', ArrowLeft: 'left', KeyA: 'left',
   ArrowDown: 'down', KeyS: 'down', ArrowUp: 'up', KeyW: 'up', Space: 'fire', KeyZ: 'fire',
@@ -33,7 +33,8 @@ export function mountPlayer(root) {
   const image = screenCtx.createImageData(SCREEN_WIDTH, SCREEN_LINES);
 
   let started = false, paused = false, muted = false, resetHold = 0;
-  let display = null, last = 0, acc = 0, pad = null;
+  let display = null, pad = null;
+  const tick = createFrameClock();
 
   const restore = window.claude?.hot?.data;
   if (restore?.memory) memory.set(restore.memory);
@@ -75,17 +76,12 @@ export function mountPlayer(root) {
   }
 
   function frame(t) {
-    if (!last) last = t;
-    const dt = Math.min(100, t - last);
-    last = t;
     pad = readGamepad();
     const edges = gamepadEdges(pad);
     if (edges.start) resetOrPlay();
     if (edges.back && started) togglePause();
-    if (!paused && !document.hidden) {
-      acc += dt;
-      while (acc >= FRAME_MS) { step(); acc -= FRAME_MS; }
-    }
+    const frames = tick(t, !paused && !document.hidden);
+    for (let i = 0; i < frames; i += 1) step();
     draw();
     requestAnimationFrame(frame);
   }

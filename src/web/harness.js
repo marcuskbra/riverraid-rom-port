@@ -2,6 +2,7 @@ import { romReset, runFrame, Z, LOW } from '../game/frame.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../game/screen.js';
 import { createTiaAudio } from './audio.js';
 import { readGamepad, gamepadEdges } from './gamepad.js';
+import { createFrameClock } from './frame-clock.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -19,7 +20,6 @@ const logicalHeight = canvas.height;
 const SCREEN_TITLE = 'title';
 const SCREEN_PLAYING = 'playing';
 const SCREEN_GAME_OVER = 'game-over';
-const frameStepMs = 1000 / 60;
 const RESET_HOLD_FRAMES = 2;
 
 // The ROM's zero page; every variable lives at its ROM address.
@@ -30,8 +30,7 @@ let display = null;
 let screenState = SCREEN_TITLE;
 let paused = false;
 let resetHold = 0;
-let lastFrameTime = 0;
-let accumulatorMs = 0;
+const tick = createFrameClock();
 
 // sound: the ROM's TIA audio registers, played by tia-sound.worklet.js
 const audio = createTiaAudio(new URL('./tia-sound.worklet.js', import.meta.url).href);
@@ -250,20 +249,12 @@ function render() {
 }
 
 function frame(timestamp) {
-  if (!lastFrameTime) lastFrameTime = timestamp;
-  const delta = Math.min(100, timestamp - lastFrameTime);
-  lastFrameTime = timestamp;
   pad = readGamepad();
   const edges = gamepadEdges(pad);
   if (edges.start) pressReset();
   if (edges.back) togglePause();
-  if (!paused) {
-    accumulatorMs += delta;
-    while (accumulatorMs >= frameStepMs) {
-      stepGame();
-      accumulatorMs -= frameStepMs;
-    }
-  }
+  const frames = tick(timestamp, !paused);
+  for (let i = 0; i < frames; i += 1) stepGame();
   render();
   window.requestAnimationFrame(frame);
 }
