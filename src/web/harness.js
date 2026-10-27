@@ -1,7 +1,7 @@
-import { romReset, runFrame, Z, LOW } from './riverraidFrame.mjs';
-import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from './riverraidScreen.mjs';
-import { createTiaAudio } from './riverraidAudio.mjs';
-import { readGamepad, gamepadEdges } from './riverraidGamepad.mjs';
+import { romReset, runFrame, Z, LOW } from '../game/frame.js';
+import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../game/screen.js';
+import { createTiaAudio } from './audio.js';
+import { readGamepad, gamepadEdges } from './gamepad.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -33,8 +33,8 @@ let resetHold = 0;
 let lastFrameTime = 0;
 let accumulatorMs = 0;
 
-// sound: the ROM's TIA audio registers, played by tiaSound.worklet.js
-const audio = createTiaAudio('./tiaSound.worklet.js');
+// sound: the ROM's TIA audio registers, played by tia-sound.worklet.js
+const audio = createTiaAudio(new URL('./tia-sound.worklet.js', import.meta.url).href);
 let muted = false;
 const startAudio = () => audio.start();
 const sendAudio = () => audio.setSilent(muted || paused);

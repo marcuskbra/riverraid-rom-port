@@ -1,4 +1,4 @@
-// Plays the ROM's TIA sound registers through tiaSound.worklet.js. Browsers
+// Plays the ROM's TIA sound registers through tia-sound.worklet.js. Browsers
 // only allow audio after a user gesture, so call start() from an input event.
 // update(io.audio) after each frame; registers the ROM did not write keep
 // their values. setSilent() mutes without losing the register state.

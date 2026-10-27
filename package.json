@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "serve": "python -m http.server 8080 --bind 127.0.0.1",
-    "check": "node --check game.mjs && node --check riverraidRiver.mjs && node --check riverraidFrame.mjs && node --check riverraidStatus.mjs && node --check tiaSound.worklet.js && node --check riverraidPalette.mjs && node --check riverraidScreen.mjs && node --check riverraidAudio.mjs && node --check riverraidGamepad.mjs && node --check riverraidPlayer.mjs && node --check riverraidPlayfieldData.mjs && node --check riverraidKernelSprites.mjs && node smoke-check.mjs && node snapshot-check.mjs",
-    "snapshot:update": "node snapshot-check.mjs --update"
+    "check": "node --check src/game/frame.js && node --check src/game/river-raid.js && node --check src/game/status.js && node --check src/game/screen.js && node --check src/game/palette.js && node --check src/game/data/playfield.js && node --check src/game/data/kernel-sprites.js && node --check src/web/player.js && node --check src/web/harness.js && node --check src/web/audio.js && node --check src/web/gamepad.js && node --check src/web/tia-sound.worklet.js && node test/smoke.test.js && node test/snapshot.test.js",
+    "snapshot:update": "node test/snapshot.test.js --update"
   }
 }

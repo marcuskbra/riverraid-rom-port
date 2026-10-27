@@ -1,11 +1,11 @@
-// Playable River Raid for the site and the tribute page: the ROM port (riverraidFrame.mjs)
+// Playable River Raid for the site and the tribute page: the ROM port (src/game/frame.js)
 // on a canvas, keyboard input while the game has focus, a gamepad, touch
 // buttons on phones, and the TIA sound worklet. Mount with mountPlayer(rootElement).
 
-import { romReset, runFrame, Z } from './riverraidFrame.mjs';
-import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from './riverraidScreen.mjs';
-import { createTiaAudio } from './riverraidAudio.mjs';
-import { readGamepad, gamepadEdges } from './riverraidGamepad.mjs';
+import { romReset, runFrame, Z } from '../game/frame.js';
+import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../game/screen.js';
+import { createTiaAudio } from './audio.js';
+import { readGamepad, gamepadEdges } from './gamepad.js';
 
 const FRAME_MS = 1000 / 60;
 const KEYS = {
@@ -25,7 +25,7 @@ export function mountPlayer(root) {
   const memory = new Uint8Array(0x100);
   const io = { swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 };
   const held = new Set();
-  const audio = createTiaAudio(new URL('./tiaSound.worklet.js', import.meta.url).href);
+  const audio = createTiaAudio(new URL('./tia-sound.worklet.js', import.meta.url).href);
   const screen = document.createElement('canvas');
   screen.width = SCREEN_WIDTH;
   screen.height = SCREEN_LINES;

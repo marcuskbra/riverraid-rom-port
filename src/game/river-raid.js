@@ -9,7 +9,7 @@
 
 import {
   PF_PAGE_FC, PF_PAGE_FD, BANK_PTR_TAB, PAGE_FLAG_TAB, SHAPE_POS_TAB, ENEMY_ID_TAB, ROAD_COLOR_TAB, INIT_TAB,
-} from './riverraidPlayfieldData.mjs';
+} from './data/playfield.js';
 
 // zero page addresses (Jentzsch lines 168-275)
 export const ZP = Object.freeze({
