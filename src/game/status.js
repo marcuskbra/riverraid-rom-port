@@ -9,7 +9,7 @@
 //   copyright scrolls in by frameCnt
 // Upstream's tools/verify-status.mjs checked this against the ROM's TIA writes.
 
-import { DIGITS, FUEL_TABS } from './riverraidPlayfieldData.mjs';
+import { DIGITS, FUEL_TABS } from './data/playfield.js';
 
 export const STATUS_SLOT_X = Object.freeze([56, 64, 72, 80, 88, 96]);
 const ZP = Object.freeze({

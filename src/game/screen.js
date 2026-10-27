@@ -3,9 +3,9 @@
 // status display. Colors are TIA bytes looked up in Stella's NTSC palette;
 // HMOVE on every line blanks the first 8 pixels; priority P0/M0 > P1 > PF > BK.
 
-import { KERNEL_LINES } from './riverraidRiver.mjs';
-import { statusLinePixels } from './riverraidStatus.mjs';
-import { NTSC_PALETTE_RGB } from './riverraidPalette.mjs';
+import { KERNEL_LINES } from './river.js';
+import { statusLinePixels } from './status.js';
+import { NTSC_PALETTE_RGB } from './palette.js';
 
 export const SCREEN_WIDTH = 160;
 export const SCREEN_LINES = KERNEL_LINES + 1 + 38;

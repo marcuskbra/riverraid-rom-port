@@ -2,7 +2,7 @@
 // (Jentzsch disassembly): MainLoop up to the kernel, the end of the status
 // display, and the main loop from .noCrash2 ($F489) to .mainLoopJmp,
 // including Reset, GameInit, LooseJet, SwapPlayers and the sound routine.
-// The kernel's collision checks are modelled in riverraidRiver.mjs.
+// The kernel's collision checks are modelled in river.js.
 // Upstream (Plicerin/riverraid-rom-port) verified this against the ROM on a 6502 core.
 //
 // io: { swcha, swchb, inpt4, inpt5 } inputs; the port writes io.colubk,
@@ -11,10 +11,10 @@
 import {
   Regs, ZP as RIVER_ZP, saveSection, calcPosX, runSetBlockVars, INIT_TAB,
   kernelPlayfieldLines, kernelObjectLines, kernelLineMasks, collisionTimes, applyKernelCollisions,
-} from './riverraidRiver.mjs';
-import { COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './riverraidPlayfieldData.mjs';
-import { KERNEL_SHAPE_BYTES } from './riverraidKernelSprites.mjs';
-import { statusLines } from './riverraidStatus.mjs';
+} from './river.js';
+import { COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './data/playfield.js';
+import { KERNEL_SHAPE_BYTES } from './data/kernel-sprites.js';
+import { statusLines } from './status.js';
 
 export const Z = Object.freeze({
   ...RIVER_ZP,

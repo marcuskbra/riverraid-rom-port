@@ -1,5 +1,5 @@
 // *** ROM port: power on, RESET, start screen, play ***
-import { romReset, runFrame, Z } from './riverraidFrame.mjs';
+import { romReset, runFrame, Z } from '../src/game/frame.js';
 const rom = new Uint8Array(0x100);
 const io = { swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 };
 const frameOf = () => runFrame(rom, io).display;

@@ -372,7 +372,7 @@
 </main>
 
 <script type="module">
-  import { mountPlayer } from './riverraidPlayer.mjs';
+  import { mountPlayer } from './src/web/player.js';
   const shell = document.getElementById('play');
   const boot = () => mountPlayer(shell.parentElement);
   window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot();

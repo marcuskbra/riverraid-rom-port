@@ -345,7 +345,7 @@
 </div>
 
 <script type="module">
-  import { mountPlayer } from './riverraidPlayer.mjs';
+  import { mountPlayer } from './src/web/player.js';
   const boot = () => mountPlayer(document.getElementById('player'));
   window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot();
 </script>

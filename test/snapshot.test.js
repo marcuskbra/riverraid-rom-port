@@ -1,16 +1,16 @@
 // Snapshot test: plays the port with fixed, seeded inputs and compares every
 // frame (the zero page apart from scratch bytes, the sound registers and the
-// screen as drawScreen paints it) with the run recorded in snapshot-check.json.
+// screen as drawScreen paints it) with the run recorded in snapshot.json.
 // Upstream compared the port with the real ROM; without the ROM, the port's
 // recorded output is the reference, so a refactor must not change any frame.
 //
-//   node snapshot-check.mjs           compare with the recording
-//   node snapshot-check.mjs --update  re-record after an intended change
+//   node test/snapshot.test.js           compare with the recording
+//   node test/snapshot.test.js --update  re-record after an intended change
 import { readFileSync, writeFileSync } from 'node:fs';
-import { romReset, runFrame, Z } from './riverraidFrame.mjs';
-import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from './riverraidScreen.mjs';
+import { romReset, runFrame, Z } from '../src/game/frame.js';
+import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../src/game/screen.js';
 
-const SNAPSHOT = new URL('./snapshot-check.json', import.meta.url);
+const SNAPSHOT = new URL('./snapshot.json', import.meta.url);
 const CHECKPOINT = 50; // frames per recorded hash
 const SCENARIOS = [
   { name: 'attract', seed: 0, frames: 1500, idle: true }, // power on, no input, screensaver
