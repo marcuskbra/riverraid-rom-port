@@ -22,12 +22,11 @@ export const ZP = Object.freeze({
   reflect0: 0xe0, hitEnemyIdx: 0xe2, PFCrashFlag: 0xe4, missileFlag: 0xe6, collidedEnemy: 0xe8, missileX: 0xf5,
 });
 
-export const NUM_BLOCKS = 6;
-export const BLOCK_SIZE = 32;
-export const SECTION_BLOCKS = 16;
-export const ROAD_HEIGHT = 13;
+const NUM_BLOCKS = 6;
+const BLOCK_SIZE = 32;
+const SECTION_BLOCKS = 16;
 
-export const BLOCK_FLAGS = Object.freeze({
+const BLOCK_FLAGS = Object.freeze({
   PF1_PAGE: 0x01, PF2_PAGE: 0x02, PF_COLOR: 0x04, PATROL: 0x10, PF_COLLIDE: 0x20, ENEMY_MOVE: 0x40, PF_ROAD: 0x80,
 });
 const ISLAND_FLAG = 0x80;
@@ -489,16 +488,16 @@ export function runSetBlockVars(mem) {
 // a road block RoadColorTab[row] on loop rows; it changes together with the
 // playfield. Upstream's tools/verify-kernel-pf.mjs checked this per pixel against the ROM.
 export const KERNEL_LINES = 160;
-export const PF_COLORS = Object.freeze({ GREEN: 0xd2, BLUE: 0x84, DARK_RED: 0x42 });
+const PF_COLORS = Object.freeze({ GREEN: 0xd2, BLUE: 0x84, DARK_RED: 0x42 });
 
-export function pfPatternByte(pageFlag, low) {
+function pfPatternByte(pageFlag, low) {
   const page = pageFlag ? PF_PAGE_FD : PF_PAGE_FC;
   const value = page[low & 0xff];
   if (value === undefined) throw new Error(`PF read outside extracted pattern data: $F${pageFlag ? 'D' : 'C'}${(low & 0xff).toString(16)}`);
   return value;
 }
 
-export function blockPlayfieldRow(mem, block, row) {
+function blockPlayfieldRow(mem, block, row) {
   const flags = mem[ZP.blockLst + block];
   const pf1 = pfPatternByte(flags & BLOCK_FLAGS.PF1_PAGE, mem[ZP.PF1Lst + block] + row);
   const pf2 = pfPatternByte(flags & BLOCK_FLAGS.PF2_PAGE, mem[ZP.PF2Lst + block] + row);
@@ -525,14 +524,8 @@ export function kernelPlayfieldLines(mem) {
   return lines;
 }
 
-// Background: BLUE water, flickering DARK_RED while a bridge explodes.
-export function kernelBackgroundColor(mem) {
-  const explode = mem[ZP.bridgeExplode];
-  return explode && (explode & 1) ? PF_COLORS.DARK_RED : PF_COLORS.BLUE;
-}
-
 // Playfield bits for one line, 160 pixels: PF0 is always set, CTRLPF reflects.
-export function playfieldPixels(line) {
+function playfieldPixels(line) {
   const bits = new Uint8Array(160);
   for (let x = 0; x < 80; x += 1) {
     const pf = x >> 2;
@@ -556,7 +549,7 @@ export function playfieldPixels(line) {
 // - kernel entry: line 0 gets no enemy graphics when blockOffset < 3 or >= 26
 //   (.noShape), and ENAM0 stays off until its first rewrite below line 0
 // Upstream's tools/verify-kernel-objects.mjs checked this against the ROM kernel.
-export const JET_Y = 19;
+const JET_Y = 19;
 
 export function kernelObjectLines(mem, shapes, jetTable) {
   const top = mem[ZP.blockOffset] - 34;
@@ -595,7 +588,7 @@ export function kernelObjectLines(mem, shapes, jetTable) {
 
 // *** TIA object geometry ***
 // x-position from the coarse/fine values CalcPosX produced (its exact inverse).
-export function objectX(coarse, state) {
+function objectX(coarse, state) {
   return 15 * coarse + ((((state >> 4) & 0x0f) ^ 7) & 0x0f) - 1;
 }
 
@@ -605,7 +598,7 @@ const NUSIZ_SCALE = [1, 1, 1, 1, 1, 2, 1, 4];
 
 // Pixels (0..159) covered by a player byte. Stretched players start one clock
 // later (Stella shows the double-size ship/house one pixel right of x).
-export function playerPixels(byte, x, nusiz = 0, reflect = false) {
+function playerPixels(byte, x, nusiz = 0, reflect = false) {
   const out = [];
   if (!byte) return out;
   const scale = NUSIZ_SCALE[nusiz & 7];
@@ -630,7 +623,7 @@ export function playerPixels(byte, x, nusiz = 0, reflect = false) {
 // status display with X = blockOffset >= 26 ? 1 : 0. A read at cycle c sees
 // pixels left of 3c - 68; CXCLR at cycle c clears pixels left of 3c + 3 - 68.
 // Upstream's tools/atari/collisions.mjs latched the ROM's own TIA writes the same way.
-export const COLLISION = Object.freeze({ M0P: 0, P0FB: 2, P1FB: 3, M0FB: 4, PPMM: 7 });
+const COLLISION = Object.freeze({ M0P: 0, P0FB: 2, P1FB: 3, M0FB: 4, PPMM: 7 });
 
 // Collision pixel times (line * 160 + x) per latch, from per-line pixel masks.
 export function collisionTimes(lineMasks) {
@@ -649,7 +642,7 @@ export function collisionTimes(lineMasks) {
 }
 
 // Latched value (bit 7) of a collision register at time t since the last clear.
-export function latched(times, reg, from, to) {
+function latched(times, reg, from, to) {
   return times[reg].some((t) => t >= from && t < to) ? 0x80 : 0;
 }
 
@@ -709,4 +702,4 @@ export function applyKernelCollisions(mem, times) {
   if (latched(times, COLLISION.PPMM, from, end)) mem[store[COLLISION.PPMM]] = last;
 }
 
-export { PF_PAGE_FC, PF_PAGE_FD, ROAD_COLOR_TAB, INIT_TAB };
+export { INIT_TAB };

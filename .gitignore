@@ -1,10 +1,6 @@
-# Caches
-__pycache__/
-.pytest_cache/
+# Dependencies
 node_modules/
 # ROM binaries and archives that may contain them
 *.a26
 *.bin
 *.zip
-# Stray zero-byte file from a broken shell command
-*nnechonecho

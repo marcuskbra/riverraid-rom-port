@@ -4,9 +4,11 @@
 // Upstream compared the port with the real ROM; without the ROM, the port's
 // recorded output is the reference, so a refactor must not change any frame.
 //
-//   node test/snapshot.test.js           compare with the recording
+//   node --test test/snapshot.test.js    compare with the recording
 //   node test/snapshot.test.js --update  re-record after an intended change
+import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
+import test from 'node:test';
 import { romReset, runFrame, Z } from '../src/game/frame.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../src/game/screen.js';
 
@@ -106,32 +108,31 @@ function play({ seed, frames, idle = false, players = 1, atReady }) {
   return { frames, checkpoints, stats };
 }
 
-const update = process.argv.includes('--update');
-const recorded = update ? {} : JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
-const results = {};
-let failures = 0;
-for (const scenario of SCENARIOS) {
-  const run = play(scenario);
-  results[scenario.name] = { ...run, checkpoints: run.checkpoints.join(' ') };
-  if (update) { console.log(scenario.name, run.stats); continue; }
-  const want = recorded[scenario.name];
-  if (!want) { failures += 1; console.log(`${scenario.name}: not recorded; run with --update`); continue; }
-  const wantCheckpoints = want.checkpoints.split(' ');
-  const i = run.checkpoints.findIndex((c, k) => c !== wantCheckpoints[k]);
-  if (i < 0 && run.checkpoints.length === wantCheckpoints.length) continue;
-  failures += 1;
-  const at = i < 0 ? Math.min(run.checkpoints.length, wantCheckpoints.length) : i;
-  console.log(`${scenario.name}: first change in frames ${at * CHECKPOINT} to ${Math.min((at + 1) * CHECKPOINT, scenario.frames) - 1}`);
-  for (const [key, value] of Object.entries(run.stats)) {
-    if (value !== want.stats[key]) console.log(`  ${key}: recorded ${want.stats[key]}, now ${value}`);
+if (process.argv.includes('--update')) {
+  const results = {};
+  for (const scenario of SCENARIOS) {
+    const run = play(scenario);
+    results[scenario.name] = { ...run, checkpoints: run.checkpoints.join(' ') };
+    console.log(scenario.name, run.stats);
   }
-}
-if (update) {
   writeFileSync(SNAPSHOT, JSON.stringify(results, null, 2) + '\n');
-  console.log('snapshot-check recorded');
-} else if (failures) {
-  console.log(`snapshot-check failed: ${failures} of ${SCENARIOS.length} scenarios changed`);
-  process.exit(1);
+  console.log('snapshot recorded');
 } else {
-  console.log(`snapshot-check ok (${SCENARIOS.length} scenarios, ${SCENARIOS.reduce((n, s) => n + s.frames, 0)} frames)`);
+  const recorded = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
+  for (const scenario of SCENARIOS) {
+    test(scenario.name, () => {
+      const want = recorded[scenario.name];
+      assert.ok(want, 'not recorded; run with --update');
+      const run = play(scenario);
+      const wantCheckpoints = want.checkpoints.split(' ');
+      const i = run.checkpoints.findIndex((c, k) => c !== wantCheckpoints[k]);
+      if (i < 0 && run.checkpoints.length === wantCheckpoints.length) return;
+      const at = i < 0 ? Math.min(run.checkpoints.length, wantCheckpoints.length) : i;
+      const changed = Object.entries(run.stats).filter(([key, value]) => value !== want.stats[key]);
+      assert.fail([
+        `first change in frames ${at * CHECKPOINT} to ${Math.min((at + 1) * CHECKPOINT, scenario.frames) - 1}`,
+        ...changed.map(([key, value]) => `  ${key}: recorded ${want.stats[key]}, now ${value}`),
+      ].join('\n'));
+    });
+  }
 }
