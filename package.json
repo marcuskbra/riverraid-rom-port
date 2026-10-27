@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "serve": "serve -l tcp://127.0.0.1:8080 --no-clipboard",
-    "check": "node --test test/*.test.js",
+    "lint": "biome lint --error-on-warnings .",
+    "check": "pnpm run lint && node --test test/*.test.js",
     "snapshot:update": "node test/snapshot.test.js --update",
     "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "serve": "14.2.6"
   }
 }

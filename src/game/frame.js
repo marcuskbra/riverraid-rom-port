@@ -500,7 +500,8 @@ function frameLogic(mem, io) {
     mem[Z.SS_Delay] = 0;
   }
   if (updateGameMode(mem)) play(mem, io);
-  const audio = (io.audio = {});
+  const audio = {};
+  io.audio = audio;
   sound0(mem, audio);
   sound1(mem, audio);
   return checkSwitches(mem, io);
