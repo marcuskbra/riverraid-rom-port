@@ -27,7 +27,7 @@ Game state is the ROM's zero page: a 256-byte array where every variable lives a
 index.html, harness.html, tribute.html   pages (served as-is, no build step)
 src/game/   pure game logic and drawing, no DOM: runs in Node and the browser
 src/web/    browser code: canvas, keyboard, gamepad, touch and Web Audio
-test/       smoke, snapshot and frame pacing tests
+test/       smoke, snapshot, frame pacing and preload tests
 ```
 
 `src/game/` never imports from `src/web/`, which is what lets the tests run the whole game in Node.
@@ -49,7 +49,7 @@ test/       smoke, snapshot and frame pacing tests
 pnpm run check
 ```
 
-Lints the code with [Biome](https://biomejs.dev) (its recommended rules; the formatter is off, so the compact style and the ROM tables' rows stay as they are), then runs every `test/*.test.js` with Node's test runner. `test/syntax.test.js` syntax-checks every module under `src/`, including the browser code the other tests don't load. `test/smoke.test.js` is a power-on/RESET run of the port that compares a checksum of the start screen (a Stella snapshot match upstream) and checks that the game starts. `test/snapshot.test.js` plays five scripted runs (attract mode with the screensaver, one and two players, low fuel and a maxed-out score) and compares every frame with `test/snapshot.json`: the zero page apart from scratch bytes, the sound registers and the screen as `drawScreen` paints it. Without the ROM, that recording is the reference, so a refactor must leave every frame unchanged. `test/frame-clock.test.js` checks the frame pacing on simulated displays from 50 to 144 Hz.
+Lints the code with [Biome](https://biomejs.dev) (its recommended rules; the formatter is off, so the compact style and the ROM tables' rows stay as they are), then runs every `test/*.test.js` with Node's test runner. `test/syntax.test.js` syntax-checks every module under `src/`, including the browser code the other tests don't load. `test/smoke.test.js` is a power-on/RESET run of the port that compares a checksum of the start screen (a Stella snapshot match upstream) and checks that the game starts. `test/snapshot.test.js` plays five scripted runs (attract mode with the screensaver, one and two players, low fuel and a maxed-out score) and compares every frame with `test/snapshot.json`: the zero page apart from scratch bytes, the sound registers and the screen as `drawScreen` paints it. Without the ROM, that recording is the reference, so a refactor must leave every frame unchanged. `test/frame-clock.test.js` checks the frame pacing on simulated displays from 50 to 144 Hz. `test/preload.test.js` checks that each page's `modulepreload` list matches the modules its scripts import, so a new module needs a line in each page that loads it.
 
 The pre-push hook in `.githooks/` runs the same check before every push. `git push --no-verify` skips it once.
 

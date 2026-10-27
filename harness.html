@@ -4,6 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>River Raid Port</title>
+  <!-- every module the page imports, fetched in parallel instead of one import level at a time -->
+  <link rel="modulepreload" href="src/web/harness.js">
+  <link rel="modulepreload" href="src/web/frame-clock.js">
+  <link rel="modulepreload" href="src/web/audio.js">
+  <link rel="modulepreload" href="src/web/gamepad.js">
+  <link rel="modulepreload" href="src/game/frame.js">
+  <link rel="modulepreload" href="src/game/screen.js">
+  <link rel="modulepreload" href="src/game/river-raid.js">
+  <link rel="modulepreload" href="src/game/status.js">
+  <link rel="modulepreload" href="src/game/palette.js">
+  <link rel="modulepreload" href="src/game/data/playfield.js">
+  <link rel="modulepreload" href="src/game/data/kernel-sprites.js">
   <style>
     :root {
       color-scheme: dark;
