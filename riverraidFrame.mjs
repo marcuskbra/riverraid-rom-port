@@ -3,7 +3,7 @@
 // display, and the main loop from .noCrash2 ($F489) to .mainLoopJmp,
 // including Reset, GameInit, LooseJet, SwapPlayers and the sound routine.
 // The kernel's collision checks are modelled in riverraidRiver.mjs.
-// tools/verify-frame.mjs runs these against the ROM on a 6502 core.
+// Upstream (Plicerin/riverraid-rom-port) verified this against the ROM on a 6502 core.
 //
 // io: { swcha, swchb, inpt4, inpt5 } inputs; the port writes io.colubk,
 // io.colup0 and io.audio = { c0, f0, v0, c1, f1, v1 } (TIA values).
