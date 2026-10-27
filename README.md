@@ -5,7 +5,7 @@ A browser port of Carol Shaw's River Raid (Activision, Atari 2600, 1982), rebuil
 ## Run
 
 ```powershell
-npm run serve
+pnpm run serve
 ```
 
 Open:
@@ -34,7 +34,7 @@ Game state is the ROM's zero page: a 256-byte array where every variable lives a
 ## Check
 
 ```powershell
-npm run check
+pnpm run check
 ```
 
 Syntax-checks the modules and runs `smoke-check.mjs`: a power-on/RESET run of the port that compares a checksum of the start screen (a Stella snapshot match upstream) and checks that the game starts.
