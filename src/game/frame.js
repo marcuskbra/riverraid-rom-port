@@ -1,9 +1,11 @@
-// River Raid frame logic, ported instruction for instruction from the ROM
-// (Jentzsch disassembly): MainLoop up to the kernel, the end of the status
-// display, and the main loop from .noCrash2 ($F489) to .mainLoopJmp,
-// including Reset, GameInit, LooseJet, SwapPlayers and the sound routine.
-// The kernel's collision checks are modelled in river-raid.js.
-// Upstream (Plicerin/riverraid-rom-port) verified this against the ROM on a 6502 core.
+// River Raid frame logic, following the ROM routine by routine (Jentzsch
+// disassembly): MainLoop up to the kernel, the end of the status display and
+// the main loop from .noCrash2 ($F489) to .mainLoopJmp, including Reset,
+// GameInit, LooseJet, SwapPlayers and the sound routine. The kernel's
+// collision checks are modelled in river-raid.js. Upstream
+// (Plicerin/riverraid-rom-port) verified its 6502-style port against the ROM
+// on a 6502 core; this plain JS version was checked frame for frame against
+// upstream's port.
 //
 // io: { swcha, swchb, inpt4, inpt5 } inputs; the port writes io.colubk,
 // io.colup0 and io.audio = { c0, f0, v0, c1, f1, v1 } (TIA values).
@@ -34,45 +36,6 @@ const GAME = Object.freeze({
   ENEMY_MOVE: 0x40, PF_COLLIDE: 0x20, PATROL: 0x10, PF_ROAD: 0x80, PF_COLOR: 0x04, DIRECTION: 0x08,
 });
 const END = (list) => list + 5;
-
-// 6502 register/flag model operating on the zero page image.
-class Regs {
-  constructor(mem) { this.m = mem; this.a = 0; this.x = 0; this.y = 0; this.c = 0; this.n = 0; this.z = 0; this.v = 0; }
-  nz(v) { v &= 0xff; this.n = v >> 7; this.z = v === 0 ? 1 : 0; return v; }
-  rd(addr) { return this.m[addr & 0xff]; }
-  wr(addr, v) { this.m[addr & 0xff] = v & 0xff; }
-  lda(v) { this.a = this.nz(v); }
-  ldx(v) { this.x = this.nz(v); }
-  ldy(v) { this.y = this.nz(v); }
-  adc(v) {
-    const r = this.a + v + this.c;
-    this.c = r > 0xff ? 1 : 0;
-    this.v = ((~(this.a ^ v) & (this.a ^ r)) & 0x80) ? 1 : 0;
-    this.a = this.nz(r);
-  }
-  sbc(v) { this.adc(v ^ 0xff); }
-  cmp(reg, v) { this.c = reg >= v ? 1 : 0; this.nz(reg - v); }
-  and(v) { this.a = this.nz(this.a & v); }
-  ora(v) { this.a = this.nz(this.a | v); }
-  eor(v) { this.a = this.nz(this.a ^ v); }
-  bit(v) { this.z = (this.a & v) === 0 ? 1 : 0; this.n = (v >> 7) & 1; this.v = (v >> 6) & 1; }
-  asl() { this.c = this.a >> 7; this.a = this.nz(this.a << 1); }
-  lsr() { this.c = this.a & 1; this.a = this.nz(this.a >> 1); }
-  rol() { const c = this.c; this.c = this.a >> 7; this.a = this.nz((this.a << 1) | c); }
-  rolMem(addr) { const v = this.rd(addr); const c = this.c; this.c = v >> 7; this.wr(addr, this.nz((v << 1) | c)); }
-  inc(addr) { this.wr(addr, this.nz(this.rd(addr) + 1)); }
-  dec(addr) { this.wr(addr, this.nz(this.rd(addr) - 1)); }
-  inx() { this.x = this.nz(this.x + 1); }
-  dex() { this.x = this.nz(this.x - 1); }
-  iny() { this.y = this.nz(this.y + 1); }
-  dey() { this.y = this.nz(this.y - 1); }
-  tax() { this.x = this.nz(this.a); }
-  txa() { this.a = this.nz(this.x); }
-  tay() { this.y = this.nz(this.a); }
-  tya() { this.a = this.nz(this.y); }
-}
-
-const mult16 = (r) => { r.asl(); r.asl(); r.asl(); r.asl(); };
 
 // SetScorePtr1 ($FF1C): scorePtr1 bytes from offset `from` down to 0, every other byte
 function setScorePtr1(mem, value, from) {

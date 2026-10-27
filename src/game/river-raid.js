@@ -1,11 +1,11 @@
 // River Raid river: block generation and playfield, ported from the ROM.
 //
-// The block generator is an instruction-for-instruction port of the main
-// loop from .setBlockVars to .mainLoopJmp (Jentzsch lines 1846-2244,
-// $F85D-$F85A) and the subroutines it calls. It runs on the 256-byte zero
-// page image, where each variable lives at its ROM address. Upstream's
-// tools/verify-blockgen.mjs checked it against the real
-// routine running on a 6502 core.
+// The block generator follows the ROM routine by routine: the main loop from
+// .setBlockVars to .mainLoopJmp (Jentzsch lines 1846-2244, $F85D-$F85A) and
+// the subroutines it calls. It runs on the 256-byte zero page image, where
+// each variable lives at its ROM address. Upstream checked its 6502-style
+// port against the real routine on a 6502 core; this plain JS version was
+// checked frame for frame against upstream's port.
 
 import {
   PF_PAGE_FC, PF_PAGE_FD, BANK_PTR_TAB, PAGE_FLAG_TAB, SHAPE_POS_TAB, ENEMY_ID_TAB, ROAD_COLOR_TAB, INIT_TAB,
@@ -17,7 +17,7 @@ export const ZP = Object.freeze({
   bridgeExplode: 0x8d, blockLst: 0x8e, XPos1Lst: 0x94, State1Lst: 0x9a, Shape1IdLst: 0xa0, PF1Lst: 0xa6,
   PF2Lst: 0xac, missileY: 0xb2, playerX: 0xb3, speedX: 0xb4, speedY: 0xb5, blockPart: 0xb6, fuelHi: 0xb7,
   fuelLo: 0xb8, sectionBlock: 0xb9, PF1PatId: 0xbc, level: 0xbd, randomLoSave: 0xbe, randomHiSave: 0xbf,
-  randomLo: 0xe9, randomHi: 0xea, randomLoSave2: 0xeb, randomHiSave2: 0xec, temp: 0xf2,
+  randomLo: 0xe9, randomHi: 0xea, randomLoSave2: 0xeb, randomHiSave2: 0xec,
   reflect0: 0xe0, hitEnemyIdx: 0xe2, PFCrashFlag: 0xe4, missileFlag: 0xe6, collidedEnemy: 0xe8, missileX: 0xf5,
 });
 
