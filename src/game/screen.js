@@ -10,37 +10,36 @@ import { NTSC_PALETTE_RGB } from './palette.js';
 export const SCREEN_WIDTH = 160;
 export const SCREEN_LINES = KERNEL_LINES + 1 + 38;
 
+// the palette as RGBA pixels, one 32-bit word each, in the same byte order as
+// a Uint32Array view of the image; entry 0 is black
+const RGBA = new Uint32Array(Uint8Array.from(NTSC_PALETTE_RGB.flatMap((rgb) => [rgb >> 16, (rgb >> 8) & 0xff, rgb & 0xff, 255])).buffer);
+
 // display: runFrame(...).display; io: the io object after runFrame (colubk, colup0)
 export function drawScreen(display, io, image) {
   const { pf, objs, masks, ssXor, ssMask, status } = display;
-  const tint = (c) => ((c ^ ssXor) & ssMask) >> 1;
-  const bg = (io.colubk ?? 0x84) >> 1;
-  const p0 = (io.colup0 ?? 0x1c) >> 1;
+  const tint = (c) => RGBA[((c ^ ssXor) & ssMask) >> 1];
+  const bg = RGBA[(io.colubk ?? 0x84) >> 1];
+  const p0 = RGBA[(io.colup0 ?? 0x1c) >> 1];
   const data = image.data;
-  const put = (s, x, index) => {
-    const rgb = x < 8 ? 0 : NTSC_PALETTE_RGB[index];
-    const o = (s * SCREEN_WIDTH + x) * 4;
-    data[o] = rgb >> 16;
-    data[o + 1] = (rgb >> 8) & 0xff;
-    data[o + 2] = rgb & 0xff;
-    data[o + 3] = 255;
-  };
+  const pixels = new Uint32Array(data.buffer, data.byteOffset, data.length >> 2);
   for (let s = 0; s < KERNEL_LINES; s += 1) {
     const pfColor = tint(pf[s].colupf);
     const p1Color = tint(objs[s].colup1);
-    const m = masks[s];
+    const { p0: p0Mask, m0: m0Mask, p1: p1Mask, pf: pfMask } = masks[s];
+    const o = s * SCREEN_WIDTH;
     for (let x = 0; x < SCREEN_WIDTH; x += 1) {
       let color = bg;
-      if (m.p0[x] || m.m0[x]) color = p0;
-      else if (m.p1[x]) color = p1Color;
-      else if (m.pf[x]) color = pfColor;
-      put(s, x, color);
+      if (p0Mask[x] || m0Mask[x]) color = p0;
+      else if (p1Mask[x]) color = p1Color;
+      else if (pfMask[x]) color = pfColor;
+      pixels[o + x] = color;
     }
   }
   const lastPf = masks[KERNEL_LINES - 1].pf, lastColor = tint(pf[KERNEL_LINES - 1].colupf);
-  for (let x = 0; x < SCREEN_WIDTH; x += 1) put(KERNEL_LINES, x, lastPf[x] ? lastColor : bg);
+  for (let x = 0; x < SCREEN_WIDTH; x += 1) pixels[KERNEL_LINES * SCREEN_WIDTH + x] = lastPf[x] ? lastColor : bg;
   status.forEach((line, i) => {
-    const row = statusLinePixels(line);
-    for (let x = 0; x < SCREEN_WIDTH; x += 1) put(KERNEL_LINES + 1 + i, x, row[x] >> 1);
+    const row = statusLinePixels(line), o = (KERNEL_LINES + 1 + i) * SCREEN_WIDTH;
+    for (let x = 0; x < SCREEN_WIDTH; x += 1) pixels[o + x] = RGBA[row[x] >> 1];
   });
+  for (let s = 0; s < KERNEL_LINES + 1 + status.length; s += 1) pixels.fill(RGBA[0], s * SCREEN_WIDTH, s * SCREEN_WIDTH + 8);
 }
