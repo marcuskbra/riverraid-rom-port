@@ -37,7 +37,13 @@ Game state is the ROM's zero page: a 256-byte array where every variable lives a
 pnpm run check
 ```
 
-Syntax-checks the modules and runs `smoke-check.mjs`: a power-on/RESET run of the port that compares a checksum of the start screen (a Stella snapshot match upstream) and checks that the game starts.
+Syntax-checks the modules and runs `smoke-check.mjs`: a power-on/RESET run of the port that compares a checksum of the start screen (a Stella snapshot match upstream) and checks that the game starts. Then `snapshot-check.mjs` plays five scripted runs (attract mode with the screensaver, one and two players, low fuel and a maxed-out score) and compares every frame with `snapshot-check.json`: the zero page, TIA colors, sound registers and everything the kernel and status display draw. Without the ROM, that recording is the reference, so a refactor must leave every frame unchanged.
+
+After an intended change to the game's behavior, re-record it and commit the new `snapshot-check.json`:
+
+```sh
+pnpm run snapshot:update
+```
 
 ## Verification
 
