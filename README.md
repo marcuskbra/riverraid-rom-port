@@ -31,7 +31,7 @@ test/       smoke and snapshot tests
 
 `src/game/` never imports from `src/web/`, which is what lets the tests run the whole game in Node.
 
-- `src/game/river.js`: the block generator (`.setBlockVars`) ported instruction for instruction, plus models of what the kernel draws on each of its 160 lines (playfield, enemy sprites, jet, missile) and of its per-block hardware collision checks.
+- `src/game/river-raid.js`: the block generator (`.setBlockVars`) ported instruction for instruction, plus models of what the kernel draws on each of its 160 lines (playfield, enemy sprites, jet, missile) and of its per-block hardware collision checks.
 - `src/game/status.js`: the score, fuel gauge, lives and copyright display, modelled on the ROM's status kernel.
 - `src/game/frame.js`: the rest of the frame (MainLoop setup, enemy movement, joystick, fuel, crashes, scoring, missile, sound registers, switches, Reset/GameInit/LooseJet/SwapPlayers), ported instruction for instruction.
 - `src/game/screen.js`, `src/game/palette.js`: paint a frame into a pixel buffer with Stella's NTSC palette.
