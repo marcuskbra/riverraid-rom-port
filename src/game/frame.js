@@ -221,7 +221,7 @@ function moveEnemyX(mem, i) {
     }
   } else {
     fine += 1;
-    if (fine >= 15) { fine -= 15; coarse = (coarse + 1) & 0xff; }
+    if (fine >= 15) { fine -= 15; coarse += 1; }
     if (coarse >= 10 && fine >= 10) { coarse = 0; fine = 0; } // wrap to the left edge
   }
   mem[Z.XPos1Lst + i] = coarse;
@@ -453,6 +453,79 @@ function play(mem, io) {
   else moveMissile(mem, io);
 }
 
+// Channel 0: the crash and refuel sounds, the low fuel alarm or the engine.
+function sound0(mem, audio) {
+  const id = mem[Z.sound0Id], count = mem[Z.sound0Cnt];
+  if (id) {
+    if (id <= 2) { // explosion (1) or out of fuel (2): fading white noise
+      audio.c0 = 0x08; audio.f0 = id === 1 ? 0x1c : 0x08; audio.v0 = count >> 1;
+    } else { // full tank (3) or refuelling (4): high pure tone
+      audio.c0 = 0x04; audio.f0 = id === 3 ? 0x0f : 0x1f; audio.v0 = count;
+    }
+    mem[Z.sound0Cnt] = count - 1;
+    if (count === 1) mem[Z.sound0Id] = 0;
+    return;
+  }
+  if (mem[Z.gameMode]) { audio.v0 = 0; return; }
+  const fuel = mem[Z.fuelHi];
+  if (fuel < 0x40) {
+    // low fuel alarm: a beep every 63 frames, continuous when the tank is nearly empty
+    const cycle = (count || 0x3f) - 1;
+    mem[Z.sound0Cnt] = cycle;
+    if (fuel < 0x04 || cycle >= 0x1c) {
+      audio.c0 = 0x0c;
+      audio.f0 = fuel < 0x04 ? 0x1f - ((fuel << 2) | (mem[Z.fuelLo] >> 6)) : cycle >> 1;
+      audio.v0 = 0x0f;
+      return;
+    }
+  }
+  // the engine: higher with speed, louder while speeding up
+  audio.c0 = 0x08;
+  audio.f0 = 0x1f - (mem[Z.speedY] >> 4);
+  audio.v0 = VOLUME_TAB[mem[Z.joystick] & 0x03];
+}
+
+// Channel 1: an explosion (bridgeSound counts down for any enemy) or the missile.
+function sound1(mem, audio) {
+  const missile = mem[Z.missileSound], explosion = mem[Z.bridgeSound];
+  if (missile) mem[Z.missileSound] = missile - 1;
+  if (explosion) {
+    mem[Z.bridgeSound] = explosion - 1;
+    audio.f1 = mem[Z.random] | 0x18; audio.c1 = 0x08; audio.v1 = (explosion >> 1) + 4;
+  } else if (missile) {
+    audio.f1 = (0x1c - missile) & 0xff; audio.c1 = 0x0c; audio.v1 = 0x08;
+  } else audio.v1 = 0;
+}
+
+// RESET and SELECT, then the river scrolls on. The switches are read after
+// VSYNC: io.swchbNext when they changed at the frame edge.
+function checkSwitches(mem, io) {
+  const switches = io.swchbNext ?? io.swchb;
+  if (!(switches & 0x01)) { // RESET
+    mem[Z.player] = mem[Z.gameVariation];
+    romReset(mem, 0xf7);
+    return { reset: true };
+  }
+  if (switches & 0x02) mem[Z.gameDelay] = 0x82; // VSYNC leaves y = $82
+  else {
+    // SELECT steps the variation at once, then every 31 frames while held
+    mem[Z.gameDelay] -= 1;
+    if (mem[Z.gameDelay] & 0x80) {
+      const variation = mem[Z.gameVariation] ^ 0x01;
+      mem[Z.gameVariation] = variation;
+      mem[Z.SS_Delay] = variation;
+      mem[Z.player] = variation;
+      setScorePtrs(mem, (variation << 3) + GAME.DIGIT_H);
+      finishGame(mem);
+      mem[Z.gameDelay] = 0x1e;
+    }
+  }
+  const mode = mem[Z.gameMode];
+  if (mode === GAME.INTRO_SCROLL) mem[Z.shapePtr0] = LOW.JetStraight - 1;
+  else if (!(mode & 0x80)) runSetBlockVars(mem);
+  return {};
+}
+
 // .noCrash2 ($F489) .. .mainLoopJmp: everything between two kernels.
 // Returns { reset: true } when the RESET switch restarted the game.
 function frameLogic(mem, io) {
@@ -463,135 +536,11 @@ function frameLogic(mem, io) {
     if (mem[Z.gameMode] === GAME.INTRO_SCROLL) { mem[Z.speedY] = 64; mem[Z.gameMode] = 0; }
     mem[Z.SS_Delay] = 0;
   }
-  const r = new Regs(mem);
-  const audio = (io.audio = {});
   if (updateGameMode(mem)) play(mem, io);
-  let L = 'doSound';
-  for (;;) {
-    switch (L) {
-      case 'doSound':
-        // *** sound routines (channel 0) ***
-        r.ldy(0x1c);
-        r.lda(r.rd(Z.sound0Cnt));
-        r.ldx(r.rd(Z.sound0Id));
-        if (r.z) { L = 'LF789'; continue; }
-        r.dex();
-        if (r.z) { L = 'LF770'; continue; }
-        r.ldy(0x0f);
-        r.cmp(r.x, 2);
-        if (r.c) { L = 'LF776'; continue; }
-        r.ldy(0x08);
-      // falls through
-      case 'LF770':
-        r.lsr(); r.tax(); r.lda(0x08); // white noise
-        L = 'LF77D'; continue;
-      case 'LF776':
-        if (!r.z) r.ldy(0x1f);
-        r.tax(); r.lda(0x04); // LF77A: high pure tone
-      // falls through
-      case 'LF77D':
-        r.dec(Z.sound0Cnt);
-        if (!r.z) { L = 'setAud0'; continue; }
-        { const a = r.a; r.lda(0); r.wr(Z.sound0Id, r.a); r.lda(a); }
-        L = 'setAud0'; continue;
-      case 'LF789':
-        // low fuel sound
-        r.lda(r.rd(Z.gameMode));
-        if (!r.z) { L = 'mute0'; continue; }
-        r.lda(r.rd(Z.fuelHi));
-        r.cmp(r.a, 0x40);
-        if (r.c) { L = 'jetSound'; continue; }
-        r.ldy(r.rd(Z.sound0Cnt));
-        if (r.z) r.ldy(0x3f);
-        r.dey(); // .contSound0
-        r.wr(Z.sound0Cnt, r.y);
-        r.ldx(r.rd(Z.fuelLo)); r.wr(Z.temp, r.x);
-        r.cmp(r.a, 0x04);
-        if (r.c) { L = 'LF7B0'; continue; }
-        r.rolMem(Z.temp); r.rol(); r.rolMem(Z.temp); r.rol();
-        r.eor(0xff); r.adc(0x20);
-        if (!r.z) { L = 'loadAud0'; continue; }
-      // falls through
-      case 'LF7B0':
-        r.cmp(r.y, 0x1c);
-        if (!r.c) { L = 'jetSound'; continue; }
-        r.tya(); r.lsr();
-      // falls through
-      case 'loadAud0':
-        r.tay(); r.lda(0x0c); r.ldx(0x0f);
-        L = 'setAud0'; continue;
-      case 'jetSound':
-        r.lda(r.rd(Z.speedY)); r.lsr(); r.lsr(); r.lsr(); r.lsr();
-        r.eor(0xff); r.c = 1; r.adc(0x1f);
-        r.tay();
-        r.lda(r.rd(Z.joystick)); r.and(0x03); r.tax();
-        r.lda(VOLUME_TAB[r.x]); r.tax();
-        r.lda(0x08); // white noise
-      // falls through
-      case 'setAud0':
-        audio.c0 = r.a; audio.f0 = r.y;
-      // falls through
-      case 'mute0':
-        audio.v0 = r.x;
-        // channel 1: missile fire or bridge explosion
-        r.lda(r.rd(Z.missileSound));
-        if (r.z) { L = 'noMissileSound'; continue; }
-        r.dec(Z.missileSound);
-        r.ldx(r.rd(Z.bridgeSound));
-        if (!r.z) { L = 'doBridge'; continue; }
-        r.eor(0xff); r.c = 1; r.adc(0x1c);
-        r.ldy(0x0c); r.ldx(0x08);
-        L = 'setAud1'; continue;
-      case 'noMissileSound':
-        r.ldx(r.rd(Z.bridgeSound));
-        if (r.z) { L = 'skipSound1'; continue; }
-      // falls through
-      case 'doBridge':
-        r.dec(Z.bridgeSound);
-        r.txa(); r.lsr(); r.c = 0; r.adc(0x04); r.tax();
-        r.lda(r.rd(Z.random)); r.ora(0x18);
-        r.ldy(0x08);
-      // falls through
-      case 'setAud1':
-        audio.f1 = r.a; audio.c1 = r.y;
-      // falls through
-      case 'skipSound1':
-        audio.v1 = r.x;
-        // start next frame (VSYNC) leaves y = $82
-        r.ldy(0x82);
-        // *** check switches *** (read after VSYNC: io.swchbNext when the switches changed at the frame edge)
-        r.lda(io.swchbNext ?? io.swchb); r.lsr();
-        if (!r.c) {
-          r.lda(r.rd(Z.gameVariation)); r.wr(Z.player, r.a);
-          romReset(mem, 0xf7);
-          return { reset: true };
-        }
-        r.lsr(); // .noReset
-        if (r.c) { L = 'noSelect'; continue; }
-        r.dec(Z.gameDelay);
-        if (!r.n) { L = 'skipSelect'; continue; }
-        r.lda(r.rd(Z.gameVariation)); r.eor(0x01); r.wr(Z.gameVariation, r.a);
-        r.wr(Z.SS_Delay, r.a);
-        r.wr(Z.player, r.a);
-        r.asl(); r.asl(); r.asl(); r.adc(GAME.DIGIT_H);
-        setScorePtrs(mem, r.a);
-        finishGame(mem);
-        r.ldy(0x1e);
-      // falls through
-      case 'noSelect':
-        r.wr(Z.gameDelay, r.y);
-      // falls through
-      case 'skipSelect':
-        r.lda(r.rd(Z.gameMode));
-        if (r.n) return {};
-        r.cmp(r.a, GAME.INTRO_SCROLL);
-        if (!r.z) { runSetBlockVars(mem); return {}; }
-        r.lda(LOW.JetStraight - 1); r.wr(Z.shapePtr0, r.a);
-        return {};
-      default:
-        throw new Error(`frameLogic: unknown label ${L}`);
-    }
-  }
+  const audio = (io.audio = {});
+  sound0(mem, audio);
+  sound1(mem, audio);
+  return checkSwitches(mem, io);
 }
 
 // One full frame: MainLoop setup, kernel collisions, status tail, game logic.
