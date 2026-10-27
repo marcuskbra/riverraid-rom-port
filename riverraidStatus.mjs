@@ -7,7 +7,7 @@
 //   (2 pixels, COLUPF) is the needle at fuelHi/8 + 69 - 1, on where ENABLTab is
 // - lives (8 lines): the lives digit, then Copyright1..5; on game over the
 //   copyright scrolls in by frameCnt
-// tools/verify-status.mjs checks this against the ROM's TIA writes.
+// Upstream's tools/verify-status.mjs checked this against the ROM's TIA writes.
 
 import { DIGITS, FUEL_TABS } from './riverraidPlayfieldData.mjs';
 

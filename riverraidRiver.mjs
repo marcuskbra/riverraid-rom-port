@@ -3,8 +3,8 @@
 // The block generator is an instruction-for-instruction port of the main
 // loop from .setBlockVars to .mainLoopJmp (Jentzsch lines 1846-2244,
 // $F85D-$F85A) and the subroutines it calls. It runs on the 256-byte zero
-// page image used by riverraidVisiblePort.mjs, where each variable lives at
-// its ROM address. tools/verify-blockgen.mjs checks it against the real
+// page image, where each variable lives at its ROM address. Upstream's
+// tools/verify-blockgen.mjs checked it against the real
 // routine running on a 6502 core.
 
 import {
@@ -487,7 +487,7 @@ export function runSetBlockVars(mem) {
 // is the screen line of the top block's first line; rows 15..13 and 0 come from
 // the setup lines, rows 12..1 from the loop. COLUPF is the block's green, or for
 // a road block RoadColorTab[row] on loop rows; it changes together with the
-// playfield. tools/verify-kernel-pf.mjs checks this per pixel against the ROM.
+// playfield. Upstream's tools/verify-kernel-pf.mjs checked this per pixel against the ROM.
 export const KERNEL_LINES = 160;
 export const PF_COLORS = Object.freeze({ GREEN: 0xd2, BLUE: 0x84, DARK_RED: 0x42 });
 
@@ -555,7 +555,7 @@ export function playfieldPixels(line) {
 // - missile: ENAM0 is only rewritten on odd block lines, from Y = 161 - s
 // - kernel entry: line 0 gets no enemy graphics when blockOffset < 3 or >= 26
 //   (.noShape), and ENAM0 stays off until its first rewrite below line 0
-// tools/verify-kernel-objects.mjs checks this against the ROM kernel.
+// Upstream's tools/verify-kernel-objects.mjs checked this against the ROM kernel.
 export const JET_Y = 19;
 
 export function kernelObjectLines(mem, shapes, jetTable) {
@@ -629,7 +629,7 @@ export function playerPixels(byte, x, nusiz = 0, reflect = false) {
 // kernel was entered past line 7). The last segment is checked after the
 // status display with X = blockOffset >= 26 ? 1 : 0. A read at cycle c sees
 // pixels left of 3c - 68; CXCLR at cycle c clears pixels left of 3c + 3 - 68.
-// tools/atari/collisions.mjs latches the ROM's own TIA writes the same way.
+// Upstream's tools/atari/collisions.mjs latched the ROM's own TIA writes the same way.
 export const COLLISION = Object.freeze({ M0P: 0, P0FB: 2, P1FB: 3, M0FB: 4, PPMM: 7 });
 
 // Collision pixel times (line * 160 + x) per latch, from per-line pixel masks.

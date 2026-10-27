@@ -1,5 +1,3 @@
-# Large third-party tooling from the old port (emulators etc.)
-archive_old_port/tools/
 # Caches
 __pycache__/
 .pytest_cache/
