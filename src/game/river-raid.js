@@ -17,8 +17,7 @@ export const ZP = Object.freeze({
   bridgeExplode: 0x8d, blockLst: 0x8e, XPos1Lst: 0x94, State1Lst: 0x9a, Shape1IdLst: 0xa0, PF1Lst: 0xa6,
   PF2Lst: 0xac, missileY: 0xb2, playerX: 0xb3, speedX: 0xb4, speedY: 0xb5, blockPart: 0xb6, fuelHi: 0xb7,
   fuelLo: 0xb8, sectionBlock: 0xb9, PF1PatId: 0xbc, level: 0xbd, randomLoSave: 0xbe, randomHiSave: 0xbf,
-  blockNum: 0xde, randomLo: 0xe9, randomHi: 0xea, randomLoSave2: 0xeb, randomHiSave2: 0xec, temp2: 0xed,
-  valleyWidth: 0xee, temp: 0xf2, maxId: 0xfc,
+  randomLo: 0xe9, randomHi: 0xea, randomLoSave2: 0xeb, randomHiSave2: 0xec, temp: 0xf2,
   reflect0: 0xe0, hitEnemyIdx: 0xe2, PFCrashFlag: 0xe4, missileFlag: 0xe6, collidedEnemy: 0xe8, missileX: 0xf5,
 });
 
@@ -29,49 +28,12 @@ const SECTION_BLOCKS = 16;
 const BLOCK_FLAGS = Object.freeze({
   PF1_PAGE: 0x01, PF2_PAGE: 0x02, PF_COLOR: 0x04, PATROL: 0x10, PF_COLLIDE: 0x20, ENEMY_MOVE: 0x40, PF_ROAD: 0x80,
 });
-const ISLAND_FLAG = 0x80;
+const ISLAND_FLAG = 0x80, ISLAND_NEXT = 0x40;
 const SWITCH_PAGE_ID = 9;
 const ID_HOUSE = 9, ID_FUEL = 10, ID_SHIP = 7, ID_BRIDGE = 8;
 const DOUBLE_SIZE = 0b101, QUAD_SIZE = 0b111, DIRECTION_FLAG = 0x08;
 
 const END = (list) => list + NUM_BLOCKS - 1;
-
-// 6502 register/flag model operating on the zero page image.
-export class Regs {
-  constructor(mem) { this.m = mem; this.a = 0; this.x = 0; this.y = 0; this.c = 0; this.n = 0; this.z = 0; this.v = 0; }
-  nz(v) { v &= 0xff; this.n = v >> 7; this.z = v === 0 ? 1 : 0; return v; }
-  rd(addr) { return this.m[addr & 0xff]; }
-  wr(addr, v) { this.m[addr & 0xff] = v & 0xff; }
-  lda(v) { this.a = this.nz(v); }
-  ldx(v) { this.x = this.nz(v); }
-  ldy(v) { this.y = this.nz(v); }
-  adc(v) {
-    const r = this.a + v + this.c;
-    this.c = r > 0xff ? 1 : 0;
-    this.v = ((~(this.a ^ v) & (this.a ^ r)) & 0x80) ? 1 : 0;
-    this.a = this.nz(r);
-  }
-  sbc(v) { this.adc(v ^ 0xff); }
-  cmp(reg, v) { this.c = reg >= v ? 1 : 0; this.nz(reg - v); }
-  and(v) { this.a = this.nz(this.a & v); }
-  ora(v) { this.a = this.nz(this.a | v); }
-  eor(v) { this.a = this.nz(this.a ^ v); }
-  bit(v) { this.z = (this.a & v) === 0 ? 1 : 0; this.n = (v >> 7) & 1; this.v = (v >> 6) & 1; }
-  asl() { this.c = this.a >> 7; this.a = this.nz(this.a << 1); }
-  lsr() { this.c = this.a & 1; this.a = this.nz(this.a >> 1); }
-  rol() { const c = this.c; this.c = this.a >> 7; this.a = this.nz((this.a << 1) | c); }
-  rolMem(addr) { const v = this.rd(addr); const c = this.c; this.c = v >> 7; this.wr(addr, this.nz((v << 1) | c)); }
-  inc(addr) { this.wr(addr, this.nz(this.rd(addr) + 1)); }
-  dec(addr) { this.wr(addr, this.nz(this.rd(addr) - 1)); }
-  inx() { this.x = this.nz(this.x + 1); }
-  dex() { this.x = this.nz(this.x - 1); }
-  iny() { this.y = this.nz(this.y + 1); }
-  dey() { this.y = this.nz(this.y - 1); }
-  tax() { this.x = this.nz(this.a); }
-  txa() { this.a = this.nz(this.x); }
-  tay() { this.y = this.nz(this.a); }
-  tya() { this.a = this.nz(this.y); }
-}
 
 // NextRandom16 ($FAC6): 16-bit LFSR, shifting in bit 4 XOR bit 7 of randomHi
 function nextRandom16(mem) {
@@ -90,28 +52,6 @@ export function saveSection(mem) {
   mem[ZP.randomHiSave] = mem[ZP.randomHi];
 }
 
-// GetPageFlag ($FF00): a = 0 for id 0 or >= SWITCH_PAGE_ID (page $FC), else 1 (page $FD)
-function getPageFlag(r) {
-  r.txa();
-  if (r.z) return;
-  r.lda(0);
-  r.cmp(r.x, SWITCH_PAGE_ID);
-  if (r.c) return;
-  r.lda(1);
-}
-
-// LoadPFPattern ($FAB1)
-function loadPFPattern(r) {
-  r.bit(r.rd(ZP.PF_State));
-  if (r.n) { r.tay(); r.lda(PAGE_FLAG_TAB[r.y]); }
-  r.ora(r.rd(END(ZP.blockLst)));
-  r.wr(END(ZP.blockLst), r.a);
-  r.lda(BANK_PTR_TAB[r.x]);
-  r.c = 0;
-  r.adc(r.rd(ZP.temp)); // diffPF
-  r.wr(END(ZP.PF2Lst), r.a);
-}
-
 // CalcPosX ($FDD8): x-position -> coarse (15-pixel steps) and fine (HMxy) values
 function calcPosX(x) {
   const p = (x + 1) & 0xff;
@@ -120,349 +60,148 @@ function calcPosX(x) {
   return { coarse, fine: ((fine ^ 7) << 4) & 0xff };
 }
 
-// .setBlockVars .. .mainLoopJmp ($F85D-$F85A): scroll by speedY and create new blocks.
+// .setBlockVars .. .mainLoopJmp ($F85D-$F85A): scroll by speedY in two steps
+// (every step at speedY >= $FE) and create a new block whenever the river has
+// scrolled one block.
 export function runSetBlockVars(mem) {
-  const r = new Regs(mem);
-  let L = 'setBlockVars';
-  for (;;) {
-    switch (L) {
-      case 'setBlockVars':
-        r.lda(3 - 1); r.wr(ZP.blockNum, r.a);
-      // falls through
-      case 'loopNext':
-        r.dec(ZP.blockNum);
-        if (r.n) return; // .mainLoopJmp
-        r.lda(r.rd(ZP.speedY));
-        r.cmp(r.a, 0xfe);
-        if (r.c) { L = 'incOffset'; continue; }
-        r.adc(r.rd(ZP.posYLo));
-        r.wr(ZP.posYLo, r.a);
-        if (!r.c) { L = 'loopNext'; continue; }
-      // falls through
-      case 'incOffset':
-        r.inc(ZP.blockOffset);
-        r.lda(r.rd(ZP.blockOffset));
-        r.cmp(r.a, BLOCK_SIZE);
-        if (!r.c) { L = 'loopNext'; continue; }
+  for (let step = 0; step < 2; step += 1) {
+    const speed = mem[ZP.speedY];
+    if (speed < 0xfe) {
+      const sum = mem[ZP.posYLo] + speed;
+      mem[ZP.posYLo] = sum;
+      if (sum <= 0xff) continue;
+    }
+    mem[ZP.blockOffset] += 1;
+    if (mem[ZP.blockOffset] >= BLOCK_SIZE) newBlock(mem);
+  }
+}
 
-        // *** create a new block ***
-        r.ldx(0); r.wr(ZP.blockOffset, r.x);
-        r.ldy(NUM_BLOCKS); r.wr(ZP.temp, r.y);
-        r.lda(r.rd(ZP.level));
-        r.cmp(r.a, 5);
-        if (r.c) r.ldy(0);
-        r.wr(ZP.valleyWidth, r.y);
-        do { // .loopBlocks
-          r.ldy(5);
-          do { // .loopMoveBlock
-            r.lda(r.rd(ZP.blockLst + 1 + r.x));
-            r.wr(ZP.blockLst + r.x, r.a);
-            r.inx(); r.dey();
-          } while (!r.z);
-          r.inx();
-          r.dec(ZP.temp);
-        } while (!r.z);
-        r.wr(END(ZP.State1Lst), r.y); // y = 0
-        r.lda(r.rd(END(ZP.blockLst))); r.and(BLOCK_FLAGS.PF_COLOR); r.wr(END(ZP.blockLst), r.a);
-        r.ldx(r.rd(ZP.PF1PatId)); r.wr(ZP.prevPF1PatId, r.x);
+// Shifts the block lists down by one and fills in the new top block (END).
+// Each PF1 pattern id lasts two blocks (blockPart 2, 1).
+function newBlock(mem) {
+  mem[ZP.blockOffset] = 0;
+  const valleyWidth = mem[ZP.level] < 5 ? 6 : 0;
+  for (let list = ZP.blockLst; list <= ZP.PF2Lst; list += NUM_BLOCKS) mem.copyWithin(list, list + 1, list + NUM_BLOCKS);
+  mem[END(ZP.State1Lst)] = 0;
+  mem[END(ZP.blockLst)] &= BLOCK_FLAGS.PF_COLOR;
+  mem[ZP.prevPF1PatId] = mem[ZP.PF1PatId];
+  mem[ZP.blockPart] -= 1;
+  if (mem[ZP.blockPart] === 0) {
+    mem[ZP.PF1PatId] = nextPatternId(mem, valleyWidth);
+    mem[ZP.blockPart] = 2;
+  } else {
+    if (mem[ZP.sectionBlock] === 1) {
+      // the last block of a section is a road with bridge
+      mem[ZP.sectionEnd] = 0;
+      mem[END(ZP.blockLst)] = BLOCK_FLAGS.PF_ROAD | (mem[ZP.level] & 1 ? 0 : BLOCK_FLAGS.PF_COLOR);
+    }
+    nextRandom16(mem);
+  }
+  setPlayfield(mem);
+  newObject(mem, valleyWidth);
+}
 
-        r.dec(ZP.blockPart);
-        if (r.z) { L = 'nextBlock'; continue; }
-        r.ldx(r.rd(ZP.sectionBlock)); r.dex();
-        if (r.z) {
-          // the last block of a section is a road with bridge
-          r.wr(ZP.sectionEnd, r.x);
-          r.lda(r.rd(ZP.level)); r.lsr();
-          const straight = r.c;
-          r.lda(BLOCK_FLAGS.PF_ROAD);
-          if (!straight) r.lda(BLOCK_FLAGS.PF_ROAD | BLOCK_FLAGS.PF_COLOR);
-          r.wr(END(ZP.blockLst), r.a);
-        }
-        nextRandom16(mem); // .notLast
-        L = 'nextBlockPart'; continue;
+// .nextBlock: counts down the section and picks the next PF1 pattern id.
+// PF_State bit 7: the blocks have an island, bit 6: the next ones have one too.
+// An island starts and ends with pattern 0 (PF_State 0 -> $40 -> $C0 -> $80 -> 0).
+function nextPatternId(mem, valleyWidth) {
+  mem[ZP.sectionBlock] -= 1;
+  if (mem[ZP.sectionBlock] === 0) {
+    saveSection(mem);
+    mem[ZP.sectionBlock] = SECTION_BLOCKS;
+  }
+  nextRandom16(mem);
+  const blocksLeft = mem[ZP.sectionBlock];
+  if (blocksLeft === 1) { mem[ZP.PF_State] = 0; return 12; } // the banks before the bridge
+  if (mem[ZP.level] & 1) return 7; // straight river
+  const state = mem[ZP.PF_State];
+  const islandEdge = () => { mem[ZP.PF_State] = state & ISLAND_FLAG ? ISLAND_FLAG : ISLAND_NEXT; return 0; };
+  if (blocksLeft === 2) {
+    // finish an island before the end of the section
+    if (state === (ISLAND_FLAG | ISLAND_NEXT)) return islandEdge();
+    mem[ZP.PF_State] = 0;
+  } else if (Boolean(state & ISLAND_FLAG) !== Boolean(state & ISLAND_NEXT)) {
+    mem[ZP.PF_State] = state & ISLAND_NEXT ? ISLAND_FLAG | ISLAND_NEXT : 0;
+  } else if ((mem[ZP.randomLo] & 0b00110000) === 0) {
+    return islandEdge();
+  }
+  // random id 2..15, at most 14 (13 with an island, 8 in the first levels)
+  let id = mem[ZP.randomLo] & 0x0f;
+  if (id < 2) id += 2;
+  return Math.min(id, valleyWidth ? 8 : mem[ZP.PF_State] & ISLAND_FLAG ? 13 : 14);
+}
 
-      case 'nextBlock':
-        r.dec(ZP.sectionBlock);
-        if (r.z) {
-          saveSection(mem);
-          r.ldx(SECTION_BLOCKS); r.wr(ZP.sectionBlock, r.x);
-        }
-        nextRandom16(mem); // .contSection
-        r.ldx(r.rd(ZP.sectionBlock)); r.dex();
-        if (r.z) {
-          r.wr(ZP.PF_State, r.x);
-          r.lda(12);
-          L = 'setPF1Id'; continue;
-        }
-        // .notLastBlock
-        r.lda(r.rd(ZP.level)); r.lsr();
-        { const straight = r.c; r.lda(7); if (straight) { L = 'setPF1Id'; continue; } }
-        r.lda(r.rd(ZP.PF_State));
-        r.dex();
-        if (r.z) {
-          // finish island before end of section
-          r.cmp(r.a, ISLAND_FLAG | 0x40);
-          if (r.z) { L = 'isSetBoth'; continue; }
-          L = 'clearBoth'; continue;
-        }
-        // .notLastButOne
-        r.asl();
-        r.eor(r.rd(ZP.PF_State));
-        if (r.n) { L = 'updateFlags'; continue; }
-        r.lda(r.rd(ZP.randomLo)); r.and(0b00110000);
-        if (!r.z) { L = 'skipFlags'; continue; }
-      // falls through
-      case 'isSetBoth':
-        r.lda(r.rd(ZP.PF_State)); r.and(ISLAND_FLAG);
-        if (r.z) r.ora(0x40);
-        r.wr(ZP.PF_State, r.a); // .isIsland
-        r.lda(0);
-        L = 'setPF1Id'; continue;
+// .nextBlockPart .. .skipSwapPF: PF1/PF2 pattern pointers and page flags. The
+// larger of the previous and the current id picks the pattern, offset by
+// their difference. With an island, PF1 and PF2 swap.
+function setPlayfield(mem) {
+  const prev = mem[ZP.prevPF1PatId], cur = mem[ZP.PF1PatId];
+  const high = Math.max(prev, cur), low = Math.min(prev, cur);
+  const diff = prev === cur ? 0 : prev > cur ? prev - cur - 1 : prev - cur + 1;
+  const pattern = (BANK_PTR_TAB[high] + diff) & 0xff;
+  let pf1 = pattern, pf2 = 0;
+  if (high >= SWITCH_PAGE_ID) {
+    pf1 = low >= SWITCH_PAGE_ID - 1 ? 0x07 : cur > prev ? prev : 14 - cur;
+    pf2 = pattern;
+  }
+  const page = high === 0 ? 0 : BLOCK_FLAGS.PF1_PAGE;
+  const island = mem[ZP.PF_State] & ISLAND_FLAG;
+  mem[END(ZP.blockLst)] |= island ? PAGE_FLAG_TAB[page] : page;
+  mem[END(ZP.PF1Lst)] = island ? pf2 : pf1;
+  mem[END(ZP.PF2Lst)] = island ? pf1 : pf2;
+}
 
-      case 'updateFlags':
-        r.lda(ISLAND_FLAG | 0x40);
-        r.bit(r.rd(ZP.PF_State));
-        if (r.v) { L = 'setBoth'; continue; }
-      // falls through
-      case 'clearBoth':
-        r.lda(0);
-      // falls through
-      case 'setBoth':
-        r.wr(ZP.PF_State, r.a);
-      // falls through
-      case 'skipFlags':
-        // create new random PF id
-        r.ldy(14);
-        r.lda(r.rd(ZP.randomLo)); r.and(0x0f);
-        r.cmp(r.a, 2);
-        if (!r.c) r.adc(2);
-        r.bit(r.rd(ZP.PF_State)); // .minOk
-        if (r.n) r.dey();
-        r.ldx(r.rd(ZP.valleyWidth)); // .skipDey
-        if (!r.z) r.ldy(8);
-        r.wr(ZP.temp, r.y); // .allWidths
-        r.cmp(r.a, r.rd(ZP.temp));
-        if (!r.c) { L = 'setPF1Id'; continue; }
-        r.lda(r.rd(ZP.temp));
-      // falls through
-      case 'setPF1Id':
-        r.wr(ZP.PF1PatId, r.a);
-        r.ldy(2); r.wr(ZP.blockPart, r.y);
-      // falls through
-      case 'nextBlockPart':
-        r.lda(r.rd(ZP.prevPF1PatId));
-        r.tax();
-        r.c = 1;
-        r.sbc(r.rd(ZP.PF1PatId));
-        r.wr(ZP.temp, r.a); // diffPF
-        if (r.c) { L = 'biggerPrev'; continue; }
-        // new id is bigger
-        r.inc(ZP.temp);
-        r.cmp(r.x, SWITCH_PAGE_ID - 1);
-        r.ldx(r.rd(ZP.PF1PatId));
-        if (r.c) { L = 'prevBigId'; continue; }
-        r.cmp(r.x, SWITCH_PAGE_ID);
-        if (!r.c) { L = 'page1Id'; continue; }
-        r.lda(0xff);
-        r.adc(r.rd(ZP.prevPF1PatId)); // CF=1
-        if (!r.n) { L = 'prevId'; continue; }
-        L = 'biggerPrev'; continue; // not reached for valid ids (BPL always taken)
-
-      case 'biggerPrev':
-        if (!r.z) r.dec(ZP.temp);
-        r.cmp(r.x, SWITCH_PAGE_ID); // .equalId
-        if (r.c) { L = 'page0Id'; continue; }
-      // falls through
-      case 'page1Id':
-        getPageFlag(r);
-        loadPFPattern(r);
-        r.wr(END(ZP.PF1Lst), r.a);
-        r.lda(0);
-        r.wr(END(ZP.PF2Lst), r.a);
-        L = 'contPage1'; continue;
-
-      case 'page0Id':
-        r.lda(r.rd(ZP.PF1PatId));
-        r.cmp(r.a, SWITCH_PAGE_ID - 1);
-        if (r.c) { L = 'prevBigId'; continue; }
-        r.lda(14 + 1);
-        r.sbc(r.rd(ZP.PF1PatId)); // CF=0
-        if (r.c) { L = 'prevId'; continue; }
-      // falls through
-      case 'prevBigId':
-        r.lda(BLOCK_FLAGS.PF1_PAGE | BLOCK_FLAGS.PF2_PAGE | BLOCK_FLAGS.PF_COLOR);
-      // falls through
-      case 'prevId':
-        r.wr(END(ZP.PF1Lst), r.a);
-        getPageFlag(r);
-        r.c = 1;
-        r.rol();
-        loadPFPattern(r);
-      // falls through
-      case 'contPage1':
-        r.bit(r.rd(ZP.PF_State));
-        if (r.n) {
-          r.lda(r.rd(END(ZP.PF1Lst)));
-          r.ldx(r.rd(END(ZP.PF2Lst)));
-          r.wr(END(ZP.PF2Lst), r.a);
-          r.wr(END(ZP.PF1Lst), r.x);
-        }
-        // .skipSwapPF
-        r.bit(r.rd(END(ZP.blockLst)));
-        if (r.n) {
-          r.lda(QUAD_SIZE); r.wr(END(ZP.State1Lst), r.a);
-          r.ldy(ID_BRIDGE);
-          r.lda(63);
-          L = 'endNewShape'; continue;
-        }
-        // .skipRoad: create new objects
-        r.ldy(ID_FUEL);
-        r.lda(r.rd(ZP.sectionBlock));
-        r.c = 0;
-        r.adc(r.rd(ZP.blockPart));
-        r.cmp(r.a, SECTION_BLOCKS + 2);
-        if (r.c) { L = 'newHouse'; continue; }
-        r.lda(64);
-        r.sbc(r.rd(ZP.level)); // CF=0
-        r.asl();
-        r.cmp(r.a, r.rd(ZP.randomHi));
-        if (!r.c) { L = 'newEnemy'; continue; }
-        r.bit(r.rd(ZP.randomLo));
-        if (!r.v) { L = 'newFuel'; continue; }
-      // falls through
-      case 'newHouse':
-        r.dey(); // y = ID_HOUSE
-        r.ldx(r.rd(ZP.PF1PatId));
-        r.cmp(r.x, r.rd(ZP.prevPF1PatId));
-        if (r.c) r.ldx(r.rd(ZP.prevPF1PatId));
-        r.lda(DOUBLE_SIZE); // .currentSmaller
-        r.wr(END(ZP.State1Lst), r.a);
-        r.lda(r.rd(ZP.level)); r.lsr();
-        if (!r.c) { L = 'notStraight'; continue; }
-        // random x-position for a house in a straight section
-        r.lda(r.rd(ZP.randomLo)); r.and(0x1f);
-        r.adc(8);
-        r.cmp(r.a, 25);
-        if (!r.c) { L = 'setShapeDir'; continue; }
-        r.adc(92);
-        L = 'setShapeDir'; continue;
-
-      case 'notStraight':
-        r.lda(SHAPE_POS_TAB[r.x]);
-        r.bit(r.rd(ZP.PF_State));
-        if (!r.n) { L = 'setShapeDir'; continue; }
-        r.cmp(r.x, 0);
-        if (r.z) { L = 'setShapeDir'; continue; }
-        r.lda(71);
-        L = 'setShapeDir'; continue;
-
-      case 'newEnemy':
-        r.lda(0b111);
-        r.ldx(r.rd(ZP.level));
-        r.cmp(r.x, 3);
-        if (!r.c) r.lda(0b001);
-        r.and(r.rd(ZP.randomHi)); // .withPlanes
-        r.tax();
-        r.ldy(ENEMY_ID_TAB[r.x]);
-      // falls through
-      case 'newFuel':
-        r.cmp(r.y, ID_SHIP);
-        if (r.z) { r.lda(DOUBLE_SIZE); r.wr(END(ZP.State1Lst), r.a); }
-        r.lda(r.rd(ZP.PF1PatId)); // .noShip
-        r.cmp(r.a, r.rd(ZP.prevPF1PatId));
-        if (!r.z) { L = 'newId'; continue; }
-        // position object in straight blocks
-        r.wr(ZP.maxId, r.a);
-        r.lda(r.rd(ZP.level)); r.lsr();
-        if (!r.c) { L = 'notStraight2'; continue; }
-        r.lda(106);
-        r.ldx(r.rd(END(ZP.State1Lst)));
-        if (!r.z) r.lda(97);
-        r.sbc(r.rd(ZP.valleyWidth)); // .isShip
-        r.wr(ZP.temp, r.a);
-        r.lda(r.rd(ZP.randomLo)); r.and(0x3f);
-        r.adc(45);
-        r.adc(r.rd(ZP.valleyWidth));
-        r.cmp(r.a, r.rd(ZP.temp));
-        if (!r.c) { L = 'setShapeDir'; continue; }
-        r.lda(r.rd(ZP.temp));
-      // falls through
-      case 'setShapeDir':
-        r.bit(r.rd(ZP.randomLo));
-        if (r.n) { L = 'invertDirection'; continue; }
-        L = 'endNewShape'; continue;
-
-      case 'newId':
-        if (!r.c) r.lda(r.rd(ZP.prevPF1PatId));
-        r.wr(ZP.maxId, r.a); // .currentBigger
-      // falls through
-      case 'notStraight2':
-        r.ldx(13);
-        r.bit(r.rd(ZP.PF_State));
-        if (r.n) r.ldx(10);
-        r.cmp(r.x, r.rd(ZP.maxId)); // .contPage12
-        if (!r.c) {
-          r.tya();
-          r.sbc(ID_SHIP - 1);
-          if (r.z) { r.wr(END(ZP.State1Lst), r.a); r.dey(); }
-        }
-        r.lda(r.rd(ZP.maxId)); // .spaceOk
-        r.asl(); r.asl();
-        if (r.z) { L = 'posSomewhere'; continue; }
-        r.bit(r.rd(ZP.PF_State));
-        if (!r.n) { L = 'posSomewhere'; continue; }
-        // position object outside
-        r.eor(0xff);
-        r.adc(81);
-        r.bit(r.rd(ZP.randomLo));
-        if (!r.n) { L = 'skipNeg'; continue; }
-        r.eor(0xff);
-        r.adc(160);
-        L = 'contPos'; continue;
-
-      case 'posSomewhere':
-        r.adc(16);
-        r.bit(r.rd(ZP.randomLo));
-        if (r.n) { L = 'doNeg'; continue; }
-      // falls through
-      case 'contPos':
-        r.c = 0;
-        r.adc(2);
-        r.adc(r.rd(ZP.valleyWidth));
-        L = 'endNewShape'; continue;
-
-      case 'doNeg':
-        r.eor(0xff);
-        r.adc(160 + 1);
-      // falls through
-      case 'skipNeg':
-        r.cmp(r.y, ID_FUEL);
-        r.sbc(9);
-        r.sbc(r.rd(ZP.valleyWidth));
-        r.ldx(r.rd(END(ZP.State1Lst)));
-        if (!r.z) r.sbc(10);
-      // falls through
-      case 'invertDirection':
-        r.cmp(r.y, ID_FUEL);
-        if (!r.z) {
-          const saved = r.a;
-          r.lda(r.rd(END(ZP.State1Lst)));
-          r.ora(DIRECTION_FLAG);
-          r.wr(END(ZP.State1Lst), r.a);
-          r.lda(saved); // PLA
-        }
-      // falls through
-      case 'endNewShape':
-        r.wr(END(ZP.Shape1IdLst), r.y);
-        { const pos = calcPosX(r.a); r.wr(END(ZP.XPos1Lst), pos.coarse); r.lda(pos.fine); }
-        r.ora(r.rd(END(ZP.State1Lst)));
-        r.wr(END(ZP.State1Lst), r.a);
-        L = 'loopNext'; continue;
-
-      default:
-        throw new Error(`runSetBlockVars: unknown label ${L}`);
+// .skipSwapPF .. .endNewShape: the new block's object. Objects sit against a
+// bank (the island's edges count as banks); against a right-hand bank they
+// are mirrored, except fuel depots.
+function newObject(mem, valleyWidth) {
+  const prev = mem[ZP.prevPF1PatId], cur = mem[ZP.PF1PatId], level = mem[ZP.level];
+  const randomLo = mem[ZP.randomLo], randomHi = mem[ZP.randomHi];
+  const island = (mem[ZP.PF_State] & ISLAND_FLAG) !== 0;
+  const flip = (randomLo & 0x80) !== 0;
+  if (mem[END(ZP.blockLst)] & BLOCK_FLAGS.PF_ROAD) {
+    placeObject(mem, ID_BRIDGE, QUAD_SIZE, 63);
+    return;
+  }
+  const enemy = ((63 - level) * 2 & 0xff) < randomHi;
+  if (mem[ZP.sectionBlock] + mem[ZP.blockPart] >= SECTION_BLOCKS + 2 || (!enemy && randomLo & 0x40)) {
+    // a house, always on the first block of a section
+    const low = Math.min(prev, cur);
+    let x;
+    if (level & 1) {
+      x = (randomLo & 0x1f) + 9; // straight river: either bank
+      if (x >= 25) x += 93;
+    } else x = island && low !== 0 ? 71 : SHAPE_POS_TAB[low];
+    placeObject(mem, ID_HOUSE, DOUBLE_SIZE | (flip ? DIRECTION_FLAG : 0), x);
+    return;
+  }
+  let id = enemy ? ENEMY_ID_TAB[randomHi & (level < 3 ? 0b001 : 0b111)] : ID_FUEL; // planes from level 3
+  let size = id === ID_SHIP ? DOUBLE_SIZE : 0;
+  let x, mirror = flip;
+  if (cur === prev && level & 1) {
+    // straight river: anywhere between the banks
+    x = Math.min((randomLo & 0x3f) + 46 + valleyWidth, (size ? 97 : 106) - valleyWidth);
+  } else {
+    const maxId = Math.max(prev, cur);
+    if (id === ID_SHIP && maxId > (island ? 10 : 13)) { id = ID_SHIP - 1; size = 0; } // too narrow: a helicopter
+    const m = maxId * 4;
+    const width = (id === ID_FUEL ? 9 : 10) + valleyWidth + (size ? 10 : 0);
+    if (island && m !== 0) {
+      x = flip ? 82 + m + valleyWidth : 80 - m - width; // right or left of the island
+      mirror = !flip;
+    } else {
+      x = flip ? 144 - m - width : m + 18 + valleyWidth; // right or left bank
     }
   }
+  placeObject(mem, id, size | (mirror && id !== ID_FUEL ? DIRECTION_FLAG : 0), x);
+}
+
+// .endNewShape
+function placeObject(mem, id, state, x) {
+  const { coarse, fine } = calcPosX(x);
+  mem[END(ZP.Shape1IdLst)] = id;
+  mem[END(ZP.XPos1Lst)] = coarse;
+  mem[END(ZP.State1Lst)] = state | fine;
 }
 
 // *** kernel playfield ***
