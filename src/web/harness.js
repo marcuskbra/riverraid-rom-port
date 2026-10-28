@@ -39,7 +39,7 @@ let muted = false;
 const startAudio = () => audio.start();
 const sendAudio = () => audio.setSilent(muted || paused);
 
-// the 160x199 Atari picture, scaled to the canvas at Stella's 2:1 pixel aspect
+// the 160 x SCREEN_LINES picture, scaled to the canvas at Stella's 2:1 pixel aspect
 const screen = document.createElement('canvas');
 screen.width = SCREEN_WIDTH;
 screen.height = SCREEN_LINES;
