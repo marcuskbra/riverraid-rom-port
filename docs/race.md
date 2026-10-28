@@ -8,7 +8,7 @@ pnpm run race      # then open http://127.0.0.1:8080/race.html
 
 ## The idea
 
-The team is remote, so modes that need one machine (shared keyboard, split screen) are out. Co-op, where players share one river and its enemies, was also dropped: it needs one game state kept in sync over the network, with every crash and shot agreed on.
+The team is remote, so modes that need one machine (shared keyboard, split screen) are out. Co-op, where players share one river and its enemies, was dropped too. The ghost race is also much simpler to build: co-op needs one game state kept in sync over the network, with every crash and shot agreed on.
 
 The race takes its shape from two things:
 
@@ -19,7 +19,7 @@ The ghosts don't need a shared game state, because the river is already shared. 
 
 ## Rules
 
-- **One round, one game each.** A round starts every player's game at once, after a 3 second countdown. Each game has the cartridge's usual jets.
+- **One round, one game each.** A round starts every player's game at once (give or take network latency: each browser counts down 3 seconds from when it receives the start). Each game has the cartridge's usual jets.
 - **Last jet flying ends the round.** A player is out at their game's own game over. When everyone is out, the room ranks the round by score.
 - **Top score wins.** Distance doesn't count toward the result. It is shown on the distance bar and decides where ghosts appear.
 - **Nobody can hold a round up.**
@@ -174,6 +174,10 @@ The page itself was checked by driving headless Chrome tabs through the relay: a
 - **A hidden tab freezes its game.** Browsers stop animation frames in background tabs, so a player who switches tabs stops flying and stops sending positions. The round waits for them until they come back or the host ends it.
 - **No reconnect.** A dropped player is out for the round. Joining again makes them a new player who watches until the next round.
 - **Scores are trusted.** Each client reports its own score, so a modified client could send any number. Fine among teammates; a public game would need the relay to check or replay games.
-- **Ties** rank in join order.
-- **After a respawn, part of the river is unchecked.** The checks compared every block at the same distance across games, in every game mode, with no differences. That includes the river scrolling in for a new jet. One case had nothing to compare against: blocks 0 to 9 right after a respawn past the first section. Ghosts are hidden during the scroll-in anyway, which covers most of it.
+- **Ties** rank players still in the room in join order, then players who left.
+- **The bottom of the river after a respawn is partly unchecked.** A one-off check (not in the repo) compared about 28,000 blocks on screen with other games' blocks at the same distance, with no differences. Two cases had nothing reliable to compare:
+  - Blocks 0 and 1 in the games that reached later sections, because the test pilot rewrites them to stay alive.
+  - Blocks 0 to 9 after a respawn in the first section, because no other game recorded that stretch.
+
+  Ghosts are hidden during the scroll-in (about 80 frames), but they are drawn at READY, which can last up to 5 seconds. If those bottom blocks did differ between games, a ghost near the bottom at READY could look like it sits on a bank. It can't hit anything either way.
 - **The relay has no limits** beyond the 1 KB message size and 10 players per room: no rate limits, no auth, and any room code can be joined by anyone who knows it.
