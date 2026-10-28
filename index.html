@@ -107,7 +107,7 @@
       padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left));
       background: var(--lp-night);
     }
-    body.fs .tv { width: min(100%, calc((100dvh - 60px) * 640 / 526)); }
+    body.fs .tv { width: min(100%, calc((100dvh - 60px) * 640 / 974)); }
     body.fs .fs-exit {
       display: block; position: absolute; z-index: 12; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
       font: 11px ui-monospace, "Cascadia Mono", monospace; padding: 6px 11px; border-radius: 8px;
@@ -118,19 +118,20 @@
       padding: 12px max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
     }
     @media (pointer: coarse) and (orientation: portrait) {
-      body.fs .tv { width: min(100%, calc((100dvh - 260px) * 640 / 526)); }
+      body.fs .tv { width: min(100%, calc((100dvh - 260px) * 640 / 974)); }
     }
     @media (pointer: coarse) and (orientation: landscape) {
-      body.fs .tv { width: min(calc(100% - 250px), calc((100dvh - 30px) * 640 / 526)); }
+      body.fs .tv { width: min(calc(100% - 250px), calc((100dvh - 30px) * 640 / 974)); }
       body.fs #status-line { display: none; }
       body.fs #tc { pointer-events: none; }
       body.fs #tc button { pointer-events: auto; opacity: 0.8; }
       body.fs .dpad { grid-template-columns: repeat(3, 42px); grid-template-rows: repeat(3, 40px); }
       body.fs .fire { width: 76px; height: 76px; }
     }
-    .tv { position: relative; }
+    /* the picture is taller than wide: its height fits the window */
+    .tv { position: relative; width: min(100%, calc((100dvh - 60px) * 640 / 974)); margin: 0 auto; }
     .tv canvas, .poster img {
-      display: block; width: 100%; height: auto; aspect-ratio: 640 / 526;
+      display: block; width: 100%; height: auto; aspect-ratio: 640 / 974;
       image-rendering: pixelated; image-rendering: crisp-edges;
     }
     .tv canvas { border-radius: 6px; border: 1px solid #000; box-shadow: 0 0 0 2px #1f2452, inset 0 0 40px rgba(0, 0, 0, 0.8); background: #000; outline: none; }
@@ -242,9 +243,9 @@
 
   <div id="play" class="canvas-shell">
     <div class="tv">
-      <canvas width="640" height="526" tabindex="0" aria-label="River Raid. Arrow keys or WASD to fly, Space or Z to fire, Enter for Game Reset."></canvas>
+      <canvas width="640" height="974" tabindex="0" aria-label="River Raid. Arrow keys or WASD to fly, Space or Z to fire, Enter for Game Reset."></canvas>
       <div class="poster" data-poster>
-        <img src="img/start.png" alt="River Raid's opening screen: the river between green banks, a helicopter, a fuel depot and a ship ahead, a house on the bank, the jet on the road and the status bar with score, fuel gauge and lives.">
+        <img src="img/start.png" alt="River Raid's opening screen: a long straight river between green banks, with helicopters, fuel depots and a ship ahead, houses on the banks, the jet on the road and the status bar with score, fuel gauge and lives.">
         <button class="lp-btn primary" type="button" data-play>Play River Raid</button>
       </div>
     </div>
