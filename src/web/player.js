@@ -139,7 +139,8 @@ export function mountPlayer(root) {
   canvas.addEventListener('blur', () => held.clear());
   canvas.addEventListener('pointerdown', () => { if (!started) play(); });
   canvas.addEventListener('contextrestored', () => { dirty = true; }); // a restored canvas is blank
-  new IntersectionObserver(([entry]) => { onScreen = entry.isIntersecting; }).observe(canvas);
+  // one callback can carry several changes, oldest first: the last one is current
+  new IntersectionObserver((entries) => { onScreen = entries[entries.length - 1].isIntersecting; }).observe(canvas);
 
   // touch controls: hold to press
   root.querySelectorAll('[data-hold]').forEach((button) => {
