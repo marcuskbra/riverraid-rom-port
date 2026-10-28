@@ -206,6 +206,30 @@ test('enemies start moving only in the bottom 5 blocks, as on the cartridge', ()
   }
 });
 
+// The cartridge raises the level when the next section's first block comes
+// in at its block 5; the port makes that block at its top. While the newest
+// road is in blocks 5 to NUM_BLOCKS - 2, the cartridge is still a level behind.
+for (const [level, road, moves] of [
+  [1, null, false], [2, null, true], [2, NUM_BLOCKS - 1, true], [2, NUM_BLOCKS - 2, false], [2, 5, false], [2, 4, true], [3, NUM_BLOCKS - 2, true],
+]) {
+  test(`at level ${level} with ${road === null ? 'no road' : `the road in block ${road}`}, ships ${moves ? 'move' : 'stay'}`, () => {
+    const { mem, io } = straightRiver(16);
+    mem[Z.level] = level;
+    if (road !== null) {
+      // the road and the blocks above it have the next section's colour
+      for (let i = road; i < NUM_BLOCKS; i += 1) mem[Z.blockLst + i] |= PF_COLOR;
+      mem[Z.blockLst + road] |= PF_ROAD;
+    }
+    place(mem, 2, ID_SHIP, DOUBLE_SIZE, 70);
+    mem[Z.blockLst + 2] |= ENEMY_MOVE;
+    const at = () => [mem[Z.XPos1Lst + 2], mem[Z.State1Lst + 2]].join();
+    const before = at();
+    runFrame(mem, io);
+    runFrame(mem, io); // ships move every other frame
+    assert.equal(at() !== before, moves);
+  });
+}
+
 test('ships turn around at the banks', () => {
   const { mem, io } = straightRiver(16);
   mem[Z.level] = 2;

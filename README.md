@@ -67,5 +67,5 @@ Upstream's port mirrors the 6502 code: a register model, labels and carry flags.
 
 ## Known gaps
 
-- The taller river changes a few things on purpose. A section starts when its first block is generated at the new top, 2 blocks earlier than on the cartridge, so from level 2 ships and helicopters start moving about 64 lines sooner. Planes that come in at the top fly 64 lines longer, so they cross the river at other places. Helicopter rotors can be in a different phase. The missile flies on to the new top, so it can hit enemies the cartridge doesn't show yet.
+- The taller river changes a few things on purpose. Planes that come in at the top fly 64 lines longer, so they cross the river at other places. Helicopter rotors can be in a different phase. The missile flies on to the new top, so it can hit enemies the cartridge doesn't show yet.
 - The sound generator's polynomial noise follows TIASound's structure, but the exact LFSR phases have not been compared with Stella's audio.

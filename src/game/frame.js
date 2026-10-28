@@ -209,7 +209,12 @@ function moveEnemies(mem) {
     const i = mem[Z.random] & 0x07;
     mem[Z.blockLst + (i >= 5 ? i - 5 : i)] |= GAME.ENEMY_MOVE;
   }
-  const moving = mem[Z.gameMode] === 0 && mem[Z.level] >= 2;
+  // The cartridge raises the level when the next section's first block comes
+  // in at its block 5, the port at its top: while the newest road (the next
+  // section's colour) is in blocks 5 to NUM_BLOCKS - 2, the cartridge is a
+  // level behind. With 6 blocks block 4 is compared with itself.
+  const behind = (mem[Z.blockLst + 4] ^ mem[Z.blockLst + NUM_BLOCKS - 2]) & GAME.PF_COLOR ? 1 : 0;
+  const moving = mem[Z.gameMode] === 0 && mem[Z.level] - behind >= 2;
   for (let i = NUM_BLOCKS - 1; i >= 0; i -= 1) {
     let id = mem[Z.Shape1IdLst + i];
     // explosions advance every 16 frames, the other animations every other frame
