@@ -64,6 +64,19 @@ test('a ghost further on is higher up by the lines it is ahead', () => {
   assert.deepEqual(changed(before, image.data), shifted.sort());
 });
 
+test('a distance between lines paints the nearest whole line', () => {
+  const at = (d) => {
+    const { image, me, jet } = flying();
+    const before = image.data.slice();
+    drawGhosts(image, me, [{ ...jet, d: me.d + d }]);
+    return changed(before, image.data);
+  };
+  const painted = at(150.4);
+  assert.ok(painted.length > 20, 'the ghost was not painted');
+  assert.deepEqual(painted, at(150));
+  assert.deepEqual(at(150.6), at(151));
+});
+
 test('ghosts off screen get an edge marker and no pixels', () => {
   const { image, me, jet } = flying();
   const before = image.data.slice();

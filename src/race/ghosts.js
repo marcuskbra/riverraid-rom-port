@@ -32,7 +32,7 @@ export function drawGhosts(image, me, ghosts) {
   const pixels = new Uint32Array(image.data.buffer, image.data.byteOffset, image.data.length >> 2);
   for (const ghost of ghosts) {
     if (ghost.d === null || ghost.d === undefined || !onRiver(ghost.mode)) continue;
-    const ahead = ghost.d - me.d;
+    const ahead = Math.round(ghost.d - me.d); // whole lines: a moved-on ghost's distance has fractions
     const top = KERNEL_LINES - (JET_ROWS - 1) - ahead; // the ghost's top line
     if (top + JET_ROWS <= 0) { labels.push({ ghost, edge: 'top', x: ghost.x }); continue; }
     if (top >= KERNEL_LINES) { labels.push({ ghost, edge: 'bottom', x: ghost.x }); continue; }
