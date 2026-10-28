@@ -1,7 +1,7 @@
 {
   "attract": {
     "frames": 1500,
-    "checkpoints": "6296240f 9f8766d7 1d0b99d5 a35c52e3 1e6943c9 041441d7 61bdfcab bcec0629 6fa23017 41d75235 c6fae493 7a8ba669 8a14393b 86bf31b5 57f10527 0ed050a1 721d1429 d1350a97 9a8f86d5 fdedd20b 2e92a939 7c5fad87 c2e965e2 5eeafba2 01d18c4a 3ee04462 beabcfe2 055110f7 00c5a959 d2faee47",
+    "checkpoints": "1a6bb7c3 4f976c92 0438c6bd 9710dd58 586c01a3 10ac7f26 ab1e2988 3617d907 3fad9dd5 b04a614b a90cf0f8 c8b8ac65 27f85769 3a203ed9 d65d34b3 78f20af5 1a0d4298 775b6ef4 2e9244cb f72812f9 2970f2e3 72f42871 26a1ce67 c83908bf 85245bbe e2341d27 c44fb8c5 913096ef cee40e60 8ed19f33",
     "stats": {
       "framesPlaying": 0,
       "crashes": 0,
@@ -18,13 +18,13 @@
   },
   "one-player": {
     "frames": 4000,
-    "checkpoints": "469ac656 8f286deb 1eecbc97 cc292d79 c7ac917c f73a1da1 2ec9066d 055aa643 d33f05fe 308b1bd3 52efa65a 7aad060d 5746d47d e766a4ed 61a4b0af 6114e0f9 a61e295d 09b36c92 3014fe1e 4e8f32ce 845223cb 3b73798e b0cd0bf3 e5b87351 879bbd02 003ab695 1a487b89 d60101d6 3d8c362d 9d595bef 3c164790 61f87524 1d2a0712 2742c300 0b75e589 07ad3f74 73e4ae0e 8d215de4 3e2b9fb7 ec3dfa80 8a63ed72 665d368e 1ae0966b 86844896 2f11f64b 1169bf2f 9a185599 df77682c 68450989 f8e2ab53 2a26378d 2aa525f6 17b852ba dd81b1cd df01f2e3 6eafbfc6 6caa30f1 b566a4b0 c8d4d8a6 565b905e 2ba70469 0fe440ec d91a7177 e2e21f43 5543c993 e792cfab c42c3965 25639a79 a42d0f33 29d033ab 41c21044 8cb1e90e 5e2f7511 525a31ee 526d62f5 fc7b9e96 31d1b16f fcd352f5 9d8f6d97 24a3a1fb",
+    "checkpoints": "c06f7807 cdd6d7ce 02f319f3 aa20e9c4 4d80c9fc d347ef80 77387c8b 2a5151c0 e17ce286 8fa29f01 cd95fbc9 c2ef7e53 fd6414ba fc6d7020 1d7cd3cb 6f5a80c6 c4cbb963 69eff3db a694f8a7 46a5cabc ecc5c134 a37cd91c 4980c42f f665376b 54c05e84 3d913246 1490ac84 fcac838f 8be806d5 86c5e42e a9adc4ec dbc5fc43 72ac86a3 a6262f8d 88df6433 58761252 17fb6f00 9149c03e 5a08504f a37e30ae 0006141d 42f6a7a9 ac884b8c 695c373e aebba69a 32e06549 0ef1d60f a245cb82 c2279875 92e36526 ac673f41 02238bb2 dbe8ae23 2d872a0f efc4fd6b 12209398 6e392e14 97bbd4c6 c8738f2e abe4111f d4768acd d361a5e4 b9cc8e7d 3d95f433 02543565 15f26a48 e04cdbcf bebefd6a adba69ba 142d99c2 a97ab51b 6fc0c4ec 8390696a afda044d f98893fc 2fa6d264 23f0cee7 659ef280 9282cf31 04eb59e7",
     "stats": {
-      "framesPlaying": 2374,
-      "crashes": 8,
+      "framesPlaying": 2197,
+      "crashes": 9,
       "gameOvers": 2,
       "bridgesHit": 1,
-      "refuels": 34,
+      "refuels": 12,
       "lowFuelFrames": 0,
       "scoreChanges": 44,
       "bonusLives": 0,
@@ -35,7 +35,7 @@
   },
   "two-players": {
     "frames": 4000,
-    "checkpoints": "03eb9b0a 26e598f6 5723bc02 dd4a8656 3468f6c3 4a5abe6f 6df25572 56b584a6 388822e1 6d00fc07 25763858 03d00018 70dd7a49 5799f23b 4f66bf91 a83bfe39 bb8b8f9b 57d1ac54 7ba0ff8f 021e6e65 ea983f2f 5a95051e e2a98869 3b8b11cf 6c29edeb 1e6fb76f 8b611848 a622846d 9af8e912 ed67f483 4d9b9642 c50cfd94 11fedb19 4aef2edf 973b7a27 13b7dd3a f6687a94 831ebdc7 273d7fb9 f504057e 4eeac398 e2e60e0c ecf30344 95048441 7a6b495f 52afe2e8 756d3787 63257d69 028dfa00 a1f31e75 b9e3f67a 68b6d981 7208a901 e900e047 2df66e2a 64208df5 35e93ba7 587d1a66 50892bf1 99da9023 166d4f99 daf590b6 927479f5 4a1061af 7c882b78 fe896776 e5158c06 3f1335fd 3a9d68bb 29a1e620 411ebd7a 95c59e6b 9e499e5e 66b720ab ef133651 546d6fd8 e8b9ea68 5c45b84c b2724a39 eaa229e7",
+    "checkpoints": "ec76d3aa 7ea15a85 f66a5a7a fd0d1efd 9aee58f0 3081fab5 6d47ebc3 d052d6e5 54a884b2 4fbdcc6d fe479ced b9fca039 20377919 e98eaebe 0c59735c cf1a052a 52a4a704 e81adbe9 0a470167 df95539b 87a2a19a 39f63f88 36ae6b29 4cd2d484 c961866c 2e72fde9 c8b013c0 c23690ec f43559b0 0b55c449 7c1d6e16 76c08653 4a72d9ab ab8ca093 d18712df 92209081 3d5b7748 037344f8 b07543f3 536e4bdb 12dbb2fa cbf20af5 fc6c9c1d 8e2ca320 5fa214b6 a6508803 6caddf80 47e78985 84bf592b f65a0949 896b5f30 5ebd8672 63c854b1 6e303da3 b76457f2 c49514e6 bbd38522 1b1a01c7 1bb0b2c7 e15eb6a6 15a7c132 dfa41983 c44eddc6 5b505c23 529e9ba7 d0f49b47 2bf7b329 0f5ae366 48285192 0bfdcd21 e2e5aecc c6346e5b d23ffbf0 e4d8bb41 74c54747 b3dcb62d 6aa1b502 50c9ee3b 68ecb45e 5b9ad465",
     "stats": {
       "framesPlaying": 1729,
       "crashes": 12,
@@ -43,7 +43,7 @@
       "bridgesHit": 0,
       "refuels": 9,
       "lowFuelFrames": 0,
-      "scoreChanges": 31,
+      "scoreChanges": 34,
       "bonusLives": 0,
       "playerSwaps": 14,
       "maxLevel": 1,
@@ -52,32 +52,32 @@
   },
   "low-fuel": {
     "frames": 3000,
-    "checkpoints": "d535fe1a 15c48aeb 5356e20b 7107e8c9 ddb946d7 a1402715 3bf72085 eb98d57b 01939735 099ad330 58fa896e b4a1b1e8 0861e775 85aa0010 61cb6642 9bb6cc7a 420ff1a8 d452d5cc cded7037 be25f8d5 ae947946 12077fea 012e9a29 9bfb47c8 e42efe36 0b677578 77cc87b0 f30d9cfa 34b85e09 20b954f0 fb771f65 0f9baa0a 7a835bb9 747f6af7 205dff7d 40bc75c1 f094e287 6f04e48c 9922b429 279118ac c6227a3c 4f3b7013 3f029e27 60f05ac2 ee58e8a9 7ee32411 79ccbf2f febdedb7 0a7b31d3 087109a2 ad191fbc 261ae79e 0406ff5d 1434cf89 db4f5710 78cac166 eaf1407d 2826217f 46830e15 eceb643f",
+    "checkpoints": "3e2983ef 17b57dba 8b89003f a5eb53be dd092a94 119a0cbd b9834890 1b6dcee0 661d468a dff983b7 e40db4b4 6a99d686 b29dae80 9da735a1 96792279 a48053d0 7ed53696 0b6f0893 c1833cbf 39815b6d 4f6eda35 ea4bbe7d cb53b9ba 707cff6a 4a2eae18 7d7f0739 a1467b28 cbc629da fea070e5 2e462c8b 77dae883 57258762 52668006 36e47353 89b7c485 34aeab2b 820abbe2 123293e4 175c8718 eeee4488 b87b6b3d edb19c12 af6017f0 ef78ad41 1f1e50d3 6b4192bf a184267e 97644048 15df8d77 47b94b27 780f73e4 8c83fa58 faad8806 e5814856 47d3b0da 4df469ac c4b59daa 7c102e5b 8d1820d7 eb8e1bf6",
     "stats": {
-      "framesPlaying": 1795,
+      "framesPlaying": 1792,
       "crashes": 6,
       "gameOvers": 1,
-      "bridgesHit": 0,
-      "refuels": 106,
-      "lowFuelFrames": 1401,
-      "scoreChanges": 24,
+      "bridgesHit": 1,
+      "refuels": 78,
+      "lowFuelFrames": 1188,
+      "scoreChanges": 30,
       "bonusLives": 0,
       "playerSwaps": 0,
-      "maxLevel": 1,
+      "maxLevel": 2,
       "screensaverFrames": 0
     }
   },
   "high-score": {
     "frames": 2000,
-    "checkpoints": "b218f880 a2ef6022 6e73e7b5 c5a5eaba 07a8a4c0 15f8e38f f47bb96b f2168500 89332d74 e67c4d8e 9c31bc1b 335f4dfc 64c292a5 90f065a3 d5cad693 95d62055 3461887d 3b70d8a7 ed948b17 b68828eb 44bdf05a 54aaf617 5f7c0ec8 e36ac9a0 4ce5a892 486d318f 403a6ffa 3eacc67c d41c8fa9 4e577226 82adcfff 1620cba1 82a1512f f5599ccb b52d15cc ad41f0f8 49c2d767 ecad6091 a8444228 15b8a187",
+    "checkpoints": "553691a9 1f0cc364 891b3aac 232d704d 27f7b536 d006ac37 372e7677 67e53d32 40b2631c 401a80aa 120d34f0 91d0a31c db38a1a3 e91cdafe 8fd5068f 31f82616 32898a32 93d0bb45 822a235b d03b3e1d 5359917c e2a6b053 b242c9e7 960b1cc3 55c84213 21dfb9c4 06ecae9e 7e6f8e2d a9003c97 f92c26db e37cdde0 4bc93050 7bc01d7a 776f67e7 2c17232b eef74e81 a9880437 abd66dfa 1bd45b9f a869f507",
     "stats": {
       "framesPlaying": 1049,
       "crashes": 5,
       "gameOvers": 2,
       "bridgesHit": 0,
-      "refuels": 18,
+      "refuels": 12,
       "lowFuelFrames": 0,
-      "scoreChanges": 18,
+      "scoreChanges": 17,
       "bonusLives": 1,
       "playerSwaps": 0,
       "maxLevel": 1,

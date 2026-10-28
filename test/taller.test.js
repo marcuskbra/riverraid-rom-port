@@ -1,5 +1,5 @@
-// The taller river: 8 blocks instead of the cartridge's 6, so the screen
-// shows 64 river lines above the cartridge's 160. The bottom 160 lines keep
+// The taller river: 15 blocks instead of the cartridge's 6, so the screen
+// shows 288 river lines above the cartridge's 160. The bottom 160 lines keep
 // the ROM's geometry (smoke.test.js checks them against Stella); the new
 // lines behave like the rest of the river.
 import assert from 'node:assert/strict';
@@ -75,16 +75,17 @@ function objectPixel(display, block) {
   return null;
 }
 
-test('the river is 224 lines and the picture 263, with 8 blocks at $100', () => {
+test('the river is 448 lines and the picture 487, with 15 blocks at $100', () => {
   const { display } = ready();
-  assert.equal(NUM_BLOCKS, 8);
-  assert.equal(KERNEL_LINES, 224);
-  assert.equal(display.pf.length, 224);
-  assert.equal(display.masks.length, 224);
-  assert.equal(SCREEN_LINES, 263);
-  assert.equal(MEMORY_SIZE, 0x130);
+  assert.equal(NUM_BLOCKS, 15);
+  assert.equal(KERNEL_LINES, 448);
+  assert.equal(display.pf.length, 448);
+  assert.equal(display.masks.length, 448);
+  assert.equal(SCREEN_LINES, 487);
+  assert.equal(MEMORY_SIZE, 0x15a);
   const lists = [Z.blockLst, Z.XPos1Lst, Z.State1Lst, Z.Shape1IdLst, Z.PF1Lst, Z.PF2Lst];
-  assert.deepEqual(lists, [0x100, 0x108, 0x110, 0x118, 0x120, 0x128]);
+  assert.deepEqual(lists, [0x100, 0x10f, 0x11e, 0x12d, 0x13c, 0x14b]);
+  assert.equal(Z.missileYHi, 0x8e);
 });
 
 test('every life starts with river up to the new top edge', () => {
@@ -112,14 +113,14 @@ test('no missile is drawn while it is off', () => {
 test('the missile flies to the new top edge', () => {
   const { mem, io } = straightRiver(16);
   mem[Z.missileX] = mem[Z.playerX] + 5;
-  setMissileHeight(mem, 200);
+  setMissileHeight(mem, 430);
   const heights = [];
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 5; i += 1) {
     runFrame(mem, io);
     heights.push(missileHeight(mem));
   }
-  assert.deepEqual(heights.slice(0, 5), [206, 212, 218, 224, 230], 'climbs 6 lines a frame up to KERNEL_LINES + 1');
-  assert.ok(heights[5] > 230, `switched off after the top edge (missileY ${heights[5]})`);
+  assert.deepEqual(heights, [436, 442, 448, 454, KERNEL_LINES + 20], 'climbs 6 lines a frame up to KERNEL_LINES + 1, then switches off');
+  assert.deepEqual([mem[Z.missileY], mem[Z.missileYHi]], [(KERNEL_LINES + 20) & 0xff, 1], 'both bytes of the height');
   const { display } = runFrame(mem, io);
   assert.ok(!missileOn(display), 'no missile after it switched off');
 });
@@ -160,7 +161,7 @@ test('a crash switches the flying missile off', () => {
   assert.ok(!missileOn(runFrame(mem, io).display), 'a missile shows after the crash');
 });
 
-for (const [block, blockOffset] of [[6, 16], [7, 28]]) {
+for (const [block, blockOffset] of [[NUM_BLOCKS - 2, 16], [NUM_BLOCKS - 1, 28]]) {
   test(`a ship in block ${block} can be shot`, () => {
     const { mem, io } = straightRiver(blockOffset);
     place(mem, block, ID_SHIP, DOUBLE_SIZE, 70);
@@ -179,8 +180,8 @@ for (const [block, blockOffset] of [[6, 16], [7, 28]]) {
 test('planes fly in the new area', () => {
   const { mem, io } = straightRiver(16);
   mem[Z.level] = 3;
-  place(mem, 7, ID_PLANE, 0, 70);
-  const at = () => [mem[Z.XPos1Lst + 7], mem[Z.State1Lst + 7]].join();
+  place(mem, NUM_BLOCKS - 1, ID_PLANE, 0, 70);
+  const at = () => [mem[Z.XPos1Lst + NUM_BLOCKS - 1], mem[Z.State1Lst + NUM_BLOCKS - 1]].join();
   const before = at();
   runFrame(mem, io);
   assert.notEqual(at(), before);
