@@ -20,7 +20,7 @@ function moduleGraph(entries) {
   return seen;
 }
 
-for (const page of ['index.html', 'tribute.html', 'harness.html']) {
+for (const page of ['index.html', 'tribute.html', 'harness.html', 'race.html']) {
   test(page, () => {
     const url = new URL(page, root);
     const html = readFileSync(url, 'utf8');

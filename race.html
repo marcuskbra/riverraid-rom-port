@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#06081a">
+  <title>River Raid Race</title>
+  <meta name="description" content="River Raid with friends: everyone flies the same river at once, the others' jets see-through on yours. Last jet flying ends the round, top score wins.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%232d32b8'/%3E%3Crect width='4' height='16' fill='%236e9c42'/%3E%3Crect x='12' width='4' height='16' fill='%236e9c42'/%3E%3Cpath d='M8 4l1 3 3 2v1H9l-.5 2H10v1H6v-1h1.5L7 10H4V9l3-2z' fill='%23e8e84a'/%3E%3C/svg%3E">
+  <!-- every module the page imports, fetched in parallel instead of one import level at a time -->
+  <link rel="modulepreload" href="src/web/race.js">
+  <link rel="modulepreload" href="src/web/frame-clock.js">
+  <link rel="modulepreload" href="src/web/audio.js">
+  <link rel="modulepreload" href="src/web/gamepad.js">
+  <link rel="modulepreload" href="src/race/racer.js">
+  <link rel="modulepreload" href="src/race/progress.js">
+  <link rel="modulepreload" href="src/race/ghosts.js">
+  <link rel="modulepreload" href="src/race/room.js">
+  <link rel="modulepreload" href="src/game/frame.js">
+  <link rel="modulepreload" href="src/game/screen.js">
+  <link rel="modulepreload" href="src/game/river-raid.js">
+  <link rel="modulepreload" href="src/game/status.js">
+  <link rel="modulepreload" href="src/game/palette.js">
+  <link rel="modulepreload" href="src/game/data/playfield.js">
+  <link rel="modulepreload" href="src/game/data/kernel-sprites.js">
+  <style>
+    /* index.html's landing-page system, cut down to the race */
+    :root {
+      --lp-night: #06081a;
+      --lp-panel: #0f1233;
+      --lp-panel-2: #0a0c24;
+      --lp-line: #1f2452;
+      --lp-line-2: #2d3470;
+      --lp-ink: #e7e9f4;
+      --lp-ink-2: #a5aad0;
+      --lp-ink-3: #6c7199;
+      --lp-accent: #e8e84a;    /* the jet, TIA $1C */
+      --lp-accent-2: #f4f47a;
+      --lp-river: #2d32b8;     /* TIA $84 */
+      --lp-bank: #6e9c42;      /* TIA $D6 */
+      --lp-fuel: #d65c5c;      /* TIA $48 */
+      --lp-link: #9aa2ff;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(120% 70% at 50% -10%, #141a52 0%, transparent 60%), var(--lp-night);
+      color: var(--lp-ink-2);
+      font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 0 16px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    main { width: min(1120px, 100%); }
+    code, kbd, input { font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace; }
+    a { color: var(--lp-link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--lp-accent); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    kbd {
+      display: inline-block; min-width: 1.5em; padding: 1px 6px; text-align: center;
+      border: 1px solid #353c7a; border-bottom-width: 3px; border-radius: 5px;
+      background: #151a45; color: var(--lp-ink); font-size: 11px; line-height: 1.5;
+    }
+
+    .lp-hero { padding: 26px 0 18px; text-align: center; }
+    .lp-home { display: inline-block; margin-bottom: 14px; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--lp-ink-3); }
+    .lp-home:hover { color: var(--lp-ink); text-decoration: none; }
+    .lp-hero h1 {
+      font-size: clamp(30px, 7vw, 56px); line-height: 0.95; color: #fff; font-weight: 800;
+      letter-spacing: clamp(2px, 1vw, 10px); text-transform: uppercase; text-indent: clamp(2px, 1vw, 10px);
+      text-shadow: 0 2px 0 #1a1e70, 0 0 46px rgba(45, 50, 184, 0.65);
+    }
+    .lp-hero p { margin: 12px auto 0; max-width: 620px; font-size: 15px; line-height: 1.6; }
+    .lp-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 20px 11px; border-radius: 999px;
+      font-weight: 600; font-size: 14px; border: 1px solid var(--lp-line-2); background: var(--lp-panel);
+      color: var(--lp-ink); cursor: pointer; font-family: inherit; transition: transform 0.12s, background 0.12s, border-color 0.12s;
+    }
+    .lp-btn:hover { transform: translateY(-1px); border-color: #3e4690; }
+    .lp-btn.primary { background: var(--lp-accent); border-color: #9a9a24; color: #0b0d2a; }
+    .lp-btn.primary:hover { background: var(--lp-accent-2); }
+
+    .race-row { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+    @media (max-width: 860px) { .race-row { grid-template-columns: minmax(0, 1fr); } }
+
+    .canvas-shell {
+      padding: 18px; border: 1px solid #272d66; border-radius: 20px; min-width: 0;
+      background: linear-gradient(180deg, #151a45 0%, #090b22 100%);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    /* the picture is taller than wide: its height fits the window */
+    .tv { position: relative; width: min(100%, calc((100dvh - 60px) * 640 / 974)); margin: 0 auto; }
+    .tv canvas, .poster img {
+      display: block; width: 100%; height: auto; aspect-ratio: 640 / 974;
+      image-rendering: pixelated; image-rendering: crisp-edges;
+    }
+    .tv canvas { border-radius: 6px; border: 1px solid #000; box-shadow: 0 0 0 2px #1f2452, inset 0 0 40px rgba(0, 0, 0, 0.8); background: #000; outline: none; }
+    .tv canvas:focus-visible { box-shadow: 0 0 0 2px var(--lp-accent); }
+    .poster { position: absolute; inset: 0; }
+    .poster img { position: absolute; inset: 0; height: 100%; border-radius: 6px; opacity: 0.55; }
+    .countdown {
+      position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+      font: 800 clamp(80px, 22vw, 180px)/1 ui-sans-serif, system-ui, sans-serif; color: var(--lp-accent);
+      text-shadow: 0 4px 0 #1a1e70, 0 0 40px rgba(0, 0, 0, 0.8);
+    }
+    #status-line { margin-top: 14px; font-size: 10px; color: var(--lp-ink-3); letter-spacing: 1px; text-align: center; line-height: 1.9; text-transform: uppercase; font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace; }
+
+    .panel { padding: 22px 20px; border: 1px solid var(--lp-line); border-radius: 16px; background: linear-gradient(180deg, var(--lp-panel) 0%, var(--lp-panel-2) 100%); }
+    .panel h2 { font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: var(--lp-accent); margin: 0 0 14px; }
+    .panel h2 code { color: var(--lp-ink); letter-spacing: 6px; font-size: 16px; }
+    .panel h3 { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--lp-ink-3); margin: 20px 0 8px; font-weight: 600; }
+    .panel p { font-size: 13.5px; line-height: 1.6; }
+    .field { display: grid; gap: 6px; margin-bottom: 14px; font-size: 12px; color: var(--lp-ink-3); text-transform: uppercase; letter-spacing: 2px; }
+    .field input {
+      font-size: 15px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--lp-line-2);
+      background: var(--lp-panel-2); color: var(--lp-ink); letter-spacing: normal; text-transform: none; width: 100%;
+    }
+    .field input[data-code] { text-transform: uppercase; letter-spacing: 6px; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+    .buttons .lp-btn { flex: 1 1 auto; }
+    .share { display: flex; gap: 8px; }
+    .share input { flex: 1; min-width: 0; font-size: 12px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--lp-line); background: var(--lp-panel-2); color: var(--lp-ink-2); }
+    .small { font: 11px ui-monospace, "Cascadia Mono", "Courier New", monospace; padding: 5px 11px; border-radius: 8px; border: 1px solid var(--lp-line); background: var(--lp-panel); color: var(--lp-ink-2); cursor: pointer; }
+    .small:hover { border-color: var(--lp-line-2); color: var(--lp-ink); }
+    .small[aria-pressed="true"] { color: var(--lp-accent); border-color: #6f6f20; }
+
+    .people { list-style: none; display: grid; gap: 2px; counter-reset: place; }
+    .people li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 14px; }
+    .people li:first-child { border-top: 0; }
+    .people .who { color: var(--lp-ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .people .what { font: 12px ui-monospace, "Cascadia Mono", monospace; color: var(--lp-ink-3); font-variant-numeric: tabular-nums; }
+    ol.people li::before { counter-increment: place; content: counter(place); width: 1.2em; color: var(--lp-ink-3); font: 12px ui-monospace, monospace; }
+    ol.people li:first-child .who { color: var(--lp-accent); }
+    .swatch { display: inline-block; width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto; border: 1px solid rgba(255, 255, 255, 0.25); }
+    .colors { display: flex; flex-wrap: wrap; gap: 8px; }
+    .colors .swatch { width: 26px; height: 26px; cursor: pointer; }
+    .colors .swatch[aria-pressed="true"] { outline: 2px solid var(--lp-accent); outline-offset: 2px; }
+    .colors .swatch:disabled { cursor: default; opacity: 0.2; }
+    .colors .swatch[aria-pressed="true"]:disabled { opacity: 1; }
+    .room-actions { display: grid; gap: 10px; margin-top: 18px; }
+    .hint { margin-top: 12px; color: var(--lp-ink-3); }
+
+    .track { position: relative; height: 14px; margin: 6px 7px 0; border-radius: 7px; background: var(--lp-river); box-shadow: inset 0 0 0 3px var(--lp-bank); }
+    .track .dot { position: absolute; top: 1px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 1px solid #000; }
+    .track .dot.me { z-index: 1; box-shadow: 0 0 0 2px #000; }
+
+    #tc { display: none; justify-content: space-between; align-items: center; width: 340px; max-width: 100%; margin: 14px auto 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .dpad { display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(3, 48px); gap: 4px; }
+    .dpad button, .fire { font: 700 18px/1 ui-sans-serif, system-ui, sans-serif; color: var(--lp-ink); background: var(--lp-panel); border: 1px solid var(--lp-line-2); border-radius: 8px; touch-action: none; }
+    .dpad [data-hold="up"] { grid-area: 1 / 2; }
+    .dpad [data-hold="left"] { grid-area: 2 / 1; }
+    .dpad [data-hold="right"] { grid-area: 2 / 3; }
+    .dpad [data-hold="down"] { grid-area: 3 / 2; }
+    .fire { width: 92px; height: 92px; border-radius: 50%; background: var(--lp-fuel); border-color: #8f2d2d; color: #fff; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; }
+    @media (pointer: coarse) { #tc { display: flex; } }
+    .keys { margin-top: 14px; text-align: center; font-size: 12px; color: var(--lp-ink-3); }
+  </style>
+</head>
+<body>
+<main>
+  <header class="lp-hero">
+    <a class="lp-home" href="index.html">&larr; River Raid</a>
+    <h1>River Raid Race</h1>
+    <p>Everyone flies the same river at once, the others' jets see-through on yours. Their enemies and crashes are theirs; yours are yours. Last jet flying ends the round, top score wins.</p>
+  </header>
+
+  <div class="race-row">
+    <div class="canvas-shell">
+      <div class="tv">
+        <canvas width="640" height="974" tabindex="0" aria-label="River Raid race. Arrow keys or WASD to fly, Space or Z to fire."></canvas>
+        <div class="poster" data-poster><img src="img/start.png" alt=""></div>
+        <div class="countdown" data-countdown hidden></div>
+      </div>
+      <div id="status-line" data-hint aria-live="polite">Pick a name and make a room, or join one with its code</div>
+      <div id="tc" aria-label="Touch controls">
+        <div class="dpad">
+          <button type="button" data-hold="up" aria-label="Speed up">▲</button>
+          <button type="button" data-hold="left" aria-label="Left">◀</button>
+          <button type="button" data-hold="right" aria-label="Right">▶</button>
+          <button type="button" data-hold="down" aria-label="Slow down">▼</button>
+        </div>
+        <button type="button" class="fire" data-hold="fire">Fire</button>
+      </div>
+      <div class="keys"><kbd>←</kbd><kbd>→</kbd> steer · <kbd>↑</kbd><kbd>↓</kbd> speed · <kbd>Space</kbd> fire · <kbd>M</kbd> mute <button type="button" class="small" data-mute aria-pressed="false">Mute</button></div>
+    </div>
+
+    <aside class="panel">
+      <form data-join>
+        <h2>Join the race</h2>
+        <label class="field">Your name<input data-name maxlength="12" autocomplete="nickname" placeholder="Pilot"></label>
+        <label class="field">Room code<input data-code maxlength="4" autocomplete="off" spellcheck="false" placeholder="ABCD"></label>
+        <div class="buttons">
+          <button class="lp-btn primary" type="submit" data-create>Make a room</button>
+          <button class="lp-btn" type="submit">Join</button>
+        </div>
+      </form>
+
+      <div data-room hidden>
+        <h2>Room <code data-room-code></code></h2>
+        <div class="share"><input data-share readonly aria-label="Link to this room"><button type="button" class="small" data-copy>Copy link</button></div>
+        <h3>Pilots</h3>
+        <ul class="people" data-players></ul>
+        <h3>Your color</h3>
+        <div class="colors" data-colors></div>
+        <h3>Distance</h3>
+        <div class="track" data-track></div>
+        <div class="room-actions">
+          <button class="lp-btn primary" type="button" data-start hidden>Start the round</button>
+          <button class="lp-btn" type="button" data-end hidden>End the round</button>
+        </div>
+        <p class="hint" data-lobby-hint></p>
+        <div data-results hidden>
+          <h3>Last round</h3>
+          <ol class="people" data-results-list></ol>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script type="module">
+  import { mountRace } from './src/web/race.js';
+  mountRace(document.querySelector('main'));
+</script>
+</body>
+</html>
