@@ -25,7 +25,7 @@ const NAME_LENGTH = 12;
 // send(id, message) delivers to one player
 export function createRoom(send) {
   const players = new Map(); // id -> { id, name, color, state, score }, in join order
-  let phase = 'lobby', host = null, round = 0, results = null, nextId = 1;
+  let phase = 'lobby', host = null, round = 0, results = null;
   let left = []; // this round's racers who disconnected, ranked with their last score
 
   const others = (id) => [...players.values()].filter((p) => p.id !== id);
@@ -83,19 +83,17 @@ export function createRoom(send) {
   };
 
   return {
-    // a new connection; returns its player id, or null when the room is full
-    join(hello) {
+    // a new connection with a new id; returns false when the room is full
+    join(id, hello) {
       const color = freeColor();
-      if (!color) return null;
-      const id = nextId;
-      nextId += 1;
+      if (!color || players.has(id)) return false;
       const name = String(hello?.name ?? '').trim().slice(0, NAME_LENGTH) || `Pilot ${id}`;
       // joining mid-round: watch, and fly from the next round
       players.set(id, { id, name, color, state: phase === 'race' ? 'watching' : 'lobby', score: 0 });
       host ??= id;
       send(id, { t: 'welcome', id });
       announce();
-      return id;
+      return true;
     },
     // a closed connection: the player is out with the last score they sent
     leave(id) {

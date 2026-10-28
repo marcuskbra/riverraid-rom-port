@@ -7,13 +7,15 @@ import { createRoom, COLORS, COUNTDOWN_MS } from '../src/race/room.js';
 function setup() {
   const inbox = new Map();
   const room = createRoom((id, message) => { if (!inbox.has(id)) inbox.set(id, []); inbox.get(id).push(message); });
+  let next = 1;
+  const join = (hello) => { const id = next; next += 1; return room.join(id, hello) ? id : null; };
   const last = (id, t) => inbox.get(id).filter((m) => m.t === t).at(-1);
-  return { room, inbox, last, state: (id) => last(id, 'room') };
+  return { room, join, inbox, last, state: (id) => last(id, 'room') };
 }
 
 test('players join with a name and their own color; the first is host', () => {
-  const { room, last, state } = setup();
-  const a = room.join({ name: '  Ana  ' }), b = room.join({ name: '' }), c = room.join({ name: 'A very long pilot name' });
+  const { join, last, state } = setup();
+  const a = join({ name: '  Ana  ' }), b = join({ name: '' }), c = join({ name: 'A very long pilot name' });
   assert.deepEqual(last(a, 'welcome'), { t: 'welcome', id: a });
   const { players, host, phase } = state(a);
   assert.equal(phase, 'lobby');
@@ -24,8 +26,8 @@ test('players join with a name and their own color; the first is host', () => {
 });
 
 test('a color can only be picked when it is free', () => {
-  const { room, state } = setup();
-  const a = room.join({ name: 'a' }), b = room.join({ name: 'b' });
+  const { room, join, state } = setup();
+  const a = join({ name: 'a' }), b = join({ name: 'b' });
   const colorOf = (id) => state(a).players.find((p) => p.id === id).color;
   room.message(b, { t: 'color', color: colorOf(a) });
   assert.notEqual(colorOf(b), colorOf(a));
@@ -36,14 +38,14 @@ test('a color can only be picked when it is free', () => {
 });
 
 test('the room is full when every color is taken', () => {
-  const { room } = setup();
-  for (const _ of COLORS) assert.notEqual(room.join({ name: 'x' }), null);
-  assert.equal(room.join({ name: 'one too many' }), null);
+  const { join } = setup();
+  for (const _ of COLORS) assert.notEqual(join({ name: 'x' }), null);
+  assert.equal(join({ name: 'one too many' }), null);
 });
 
 test('only the host starts, and everyone gets the countdown', () => {
-  const { room, last, state } = setup();
-  const a = room.join({ name: 'a' }), b = room.join({ name: 'b' });
+  const { room, join, last, state } = setup();
+  const a = join({ name: 'a' }), b = join({ name: 'b' });
   room.message(b, { t: 'start' });
   assert.equal(state(a).phase, 'lobby');
   room.message(a, { t: 'start' });
@@ -53,8 +55,8 @@ test('only the host starts, and everyone gets the countdown', () => {
 });
 
 test('positions go to the other players only', () => {
-  const { room, inbox, last } = setup();
-  const a = room.join({ name: 'a' }), b = room.join({ name: 'b' });
+  const { room, join, inbox, last } = setup();
+  const a = join({ name: 'a' }), b = join({ name: 'b' });
   room.message(a, { t: 'start' });
   const before = inbox.get(a).length;
   room.message(a, { t: 'pos', d: 500, x: 76, shape: 0xbb, reflect: 0, mode: 0, score: 30 });
@@ -63,8 +65,8 @@ test('positions go to the other players only', () => {
 });
 
 test('the round ends when the last jet is out, ranked by score', () => {
-  const { room, state } = setup();
-  const a = room.join({ name: 'a' }), b = room.join({ name: 'b' }), c = room.join({ name: 'c' });
+  const { room, join, state } = setup();
+  const a = join({ name: 'a' }), b = join({ name: 'b' }), c = join({ name: 'c' });
   room.message(a, { t: 'start' });
   room.message(b, { t: 'out', score: 900 });
   room.message(a, { t: 'out', score: 2500 });
@@ -78,8 +80,8 @@ test('the round ends when the last jet is out, ranked by score', () => {
 });
 
 test('the host can end the round: jets still flying keep their score', () => {
-  const { room, state } = setup();
-  const a = room.join({ name: 'a' }), b = room.join({ name: 'b' });
+  const { room, join, state } = setup();
+  const a = join({ name: 'a' }), b = join({ name: 'b' });
   room.message(a, { t: 'start' });
   room.message(b, { t: 'pos', d: 100, x: 70, shape: 0xbb, reflect: 0, mode: 48, score: 450 });
   room.message(b, { t: 'end' });
@@ -89,8 +91,8 @@ test('the host can end the round: jets still flying keep their score', () => {
 });
 
 test('a player who leaves mid-round is out with their last score', () => {
-  const { room, state } = setup();
-  const a = room.join({ name: 'a' }), b = room.join({ name: 'b' });
+  const { room, join, state } = setup();
+  const a = join({ name: 'a' }), b = join({ name: 'b' });
   room.message(a, { t: 'start' });
   room.message(b, { t: 'pos', d: 100, x: 70, shape: 0xbb, reflect: 0, mode: 0, score: 700 });
   room.leave(b);
@@ -99,8 +101,8 @@ test('a player who leaves mid-round is out with their last score', () => {
 });
 
 test('the next player becomes host when the host leaves', () => {
-  const { room, state } = setup();
-  const a = room.join({ name: 'a' }), b = room.join({ name: 'b' }), c = room.join({ name: 'c' });
+  const { room, join, state } = setup();
+  const a = join({ name: 'a' }), b = join({ name: 'b' }), c = join({ name: 'c' });
   room.leave(a);
   assert.equal(state(c).host, b);
   room.message(b, { t: 'start' });
@@ -108,10 +110,10 @@ test('the next player becomes host when the host leaves', () => {
 });
 
 test('joining mid-round watches, then flies the next round', () => {
-  const { room, state } = setup();
-  const a = room.join({ name: 'a' });
+  const { room, join, state } = setup();
+  const a = join({ name: 'a' });
   room.message(a, { t: 'start' });
-  const b = room.join({ name: 'b' });
+  const b = join({ name: 'b' });
   assert.equal(state(b).players.find((p) => p.id === b).state, 'watching');
   room.message(a, { t: 'out', score: 100 });
   assert.deepEqual(state(b).results.map((r) => r.id), [a], 'a watcher is not ranked');
@@ -120,8 +122,8 @@ test('joining mid-round watches, then flies the next round', () => {
 });
 
 test('messages that do not fit are ignored', () => {
-  const { room, state } = setup();
-  const a = room.join({ name: 'a' });
+  const { room, join, state } = setup();
+  const a = join({ name: 'a' });
   room.message(a, { t: 'out', score: 5 }); // not racing
   room.message(a, { t: 'nope' });
   room.message(a, null);
