@@ -17,8 +17,8 @@
 //   { t: 'pos', id, ... }           another player's jet
 //   { t: 'error', reason }
 
-// Among Us colors that stay readable over the river's blue and green
-export const COLORS = Object.freeze(['red', 'blue', 'green', 'pink', 'orange', 'yellow', 'white', 'purple', 'cyan', 'lime']);
+// Among Us colors, without blue (it disappears on the river) and yellow (your own jet)
+export const COLORS = Object.freeze(['red', 'orange', 'pink', 'white', 'cyan', 'lime', 'purple', 'brown', 'black', 'gray']);
 export const COUNTDOWN_MS = 3000;
 const NAME_LENGTH = 12;
 

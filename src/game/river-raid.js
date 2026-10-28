@@ -357,7 +357,7 @@ const NUSIZ_SCALE = [1, 1, 1, 1, 1, 2, 1, 4];
 
 // Pixels (0..159) covered by a player byte. Stretched players start one clock
 // later (Stella shows the double-size ship/house one pixel right of x).
-function playerPixels(byte, x, nusiz = 0, reflect = false) {
+export function playerPixels(byte, x, nusiz = 0, reflect = false) {
   const out = [];
   if (!byte) return out;
   const scale = NUSIZ_SCALE[nusiz & 7];
