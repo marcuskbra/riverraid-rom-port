@@ -1,7 +1,7 @@
-// One player's game in a race: a one-player River Raid that starts when the
+// One pilot's game in a match: a one-player River Raid that starts when the
 // round does and ends at the game's own game over. There is no RESET and no
 // pause, and a jet left waiting at READY takes off by itself, so nobody can
-// hold the round up. No DOM: src/web/race.js gives it the controls and draws
+// hold the round up. No DOM: src/web/match.js gives it the controls and draws
 // what it returns, and the tests drive it directly.
 
 import { romReset, runFrame, Z, MEMORY_SIZE } from '../game/frame.js';
@@ -11,7 +11,7 @@ const READY = 48, GAME_OVER = 0xff;
 export const TAKEOFF_FRAMES = 300; // 5 seconds at READY, then the jet takes off
 const RESET_FRAMES = 3; // the RESET switch is held this long to start the game
 
-export function createRacer() {
+export function createPilot() {
   const mem = new Uint8Array(MEMORY_SIZE);
   const io = { swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 };
   let progress = null, resetHold = 0, waiting = 0, playing = false, over = false;

@@ -1,4 +1,4 @@
-// What a race needs to know about one player's game, read from its RAM: how
+// What a match needs to know about one player's game, read from its RAM: how
 // far the jet has flown, its score, and what its jet looks like. No DOM: the
 // browser, the relay and the tests all use it.
 //

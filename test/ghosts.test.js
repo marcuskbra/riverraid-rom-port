@@ -1,11 +1,11 @@
-// Other players' jets on your river (src/race/ghosts.js).
+// Other players' jets on your river (src/match/ghosts.js).
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { romReset, runFrame, Z, MEMORY_SIZE } from '../src/game/frame.js';
 import { KERNEL_LINES } from '../src/game/river-raid.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../src/game/screen.js';
-import { createProgress } from '../src/race/progress.js';
-import { drawGhosts } from '../src/race/ghosts.js';
+import { createProgress } from '../src/match/progress.js';
+import { drawGhosts } from '../src/match/ghosts.js';
 
 // a game a few seconds after take-off, drawn; stick banks the jet at the end
 function flying(stick = 0x7f) {

@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#06081a">
-  <title>River Raid Race</title>
+  <title>River Raid Match</title>
   <meta name="description" content="River Raid with friends: everyone flies the same river at once, the others' jets see-through on yours. Last jet flying ends the round, top score wins.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%232d32b8'/%3E%3Crect width='4' height='16' fill='%236e9c42'/%3E%3Crect x='12' width='4' height='16' fill='%236e9c42'/%3E%3Cpath d='M8 4l1 3 3 2v1H9l-.5 2H10v1H6v-1h1.5L7 10H4V9l3-2z' fill='%23e8e84a'/%3E%3C/svg%3E">
   <!-- every module the page imports, fetched in parallel instead of one import level at a time -->
-  <link rel="modulepreload" href="src/web/race.js">
+  <link rel="modulepreload" href="src/web/match.js">
   <link rel="modulepreload" href="src/web/frame-clock.js">
   <link rel="modulepreload" href="src/web/audio.js">
   <link rel="modulepreload" href="src/web/gamepad.js">
-  <link rel="modulepreload" href="src/race/racer.js">
-  <link rel="modulepreload" href="src/race/progress.js">
-  <link rel="modulepreload" href="src/race/ghosts.js">
-  <link rel="modulepreload" href="src/race/room.js">
+  <link rel="modulepreload" href="src/match/pilot.js">
+  <link rel="modulepreload" href="src/match/progress.js">
+  <link rel="modulepreload" href="src/match/ghosts.js">
+  <link rel="modulepreload" href="src/match/room.js">
   <link rel="modulepreload" href="src/game/frame.js">
   <link rel="modulepreload" href="src/game/screen.js">
   <link rel="modulepreload" href="src/game/river-raid.js">
@@ -24,7 +24,7 @@
   <link rel="modulepreload" href="src/game/data/playfield.js">
   <link rel="modulepreload" href="src/game/data/kernel-sprites.js">
   <style>
-    /* index.html's landing-page system, cut down to the race */
+    /* index.html's landing-page system, cut down to the match */
     :root {
       --lp-night: #06081a;
       --lp-panel: #0f1233;
@@ -82,8 +82,8 @@
     .lp-btn.primary { background: var(--lp-accent); border-color: #9a9a24; color: #0b0d2a; }
     .lp-btn.primary:hover { background: var(--lp-accent-2); }
 
-    .race-row { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
-    @media (max-width: 860px) { .race-row { grid-template-columns: minmax(0, 1fr); } }
+    .match-row { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+    @media (max-width: 860px) { .match-row { grid-template-columns: minmax(0, 1fr); } }
 
     .canvas-shell {
       padding: 18px; border: 1px solid #272d66; border-radius: 20px; min-width: 0;
@@ -162,18 +162,18 @@
 <main>
   <header class="lp-hero">
     <a class="lp-home" href="index.html">&larr; River Raid</a>
-    <h1>River Raid Race</h1>
+    <h1>River Raid Match</h1>
     <p>Everyone flies the same river at once, the others' jets see-through on yours. Their enemies and crashes are theirs; yours are yours. Last jet flying ends the round, top score wins.</p>
   </header>
 
-  <div class="race-row">
+  <div class="match-row">
     <div class="canvas-shell">
       <div class="tv">
-        <canvas width="640" height="974" tabindex="0" aria-label="River Raid race. Arrow keys or WASD to fly, Space or Z to fire."></canvas>
+        <canvas width="640" height="974" tabindex="0" aria-label="River Raid match. Arrow keys or WASD to fly, Space or Z to fire."></canvas>
         <div class="poster" data-poster><img src="img/start.png" alt=""></div>
         <div class="countdown" data-countdown hidden></div>
       </div>
-      <div id="status-line" data-hint aria-live="polite">Pick a name and make a room, or join one with its code</div>
+      <div id="status-line" data-hint aria-live="polite">Pick a name and make a match, or join one with its code</div>
       <div id="tc" aria-label="Touch controls">
         <div class="dpad">
           <button type="button" data-hold="up" aria-label="Speed up">▲</button>
@@ -188,18 +188,18 @@
 
     <aside class="panel">
       <form data-join>
-        <h2>Join the race</h2>
+        <h2>Join a match</h2>
         <label class="field">Your name<input data-name maxlength="12" autocomplete="nickname" placeholder="Pilot"></label>
-        <label class="field">Room code<input data-code maxlength="4" autocomplete="off" spellcheck="false" placeholder="ABCD"></label>
+        <label class="field">Match code<input data-code maxlength="4" autocomplete="off" spellcheck="false" placeholder="ABCD"></label>
         <div class="buttons">
-          <button class="lp-btn primary" type="submit" data-create>Make a room</button>
+          <button class="lp-btn primary" type="submit" data-create>Make a match</button>
           <button class="lp-btn" type="submit">Join</button>
         </div>
       </form>
 
       <div data-room hidden>
-        <h2>Room <code data-room-code></code></h2>
-        <div class="share"><input data-share readonly aria-label="Link to this room"><button type="button" class="small" data-copy>Copy link</button></div>
+        <h2>Match <code data-room-code></code></h2>
+        <div class="share"><input data-share readonly aria-label="Link to this match"><button type="button" class="small" data-copy>Copy link</button></div>
         <h3>Pilots</h3>
         <ul class="people" data-players></ul>
         <h3>Your color</h3>
@@ -216,13 +216,14 @@
           <ol class="people" data-results-list></ol>
         </div>
       </div>
+
     </aside>
   </div>
 </main>
 
 <script type="module">
-  import { mountRace } from './src/web/race.js';
-  mountRace(document.querySelector('main'));
+  import { mountMatch } from './src/web/match.js';
+  mountMatch(document.querySelector('main'));
 </script>
 </body>
 </html>

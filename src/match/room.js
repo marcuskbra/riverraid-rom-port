@@ -1,4 +1,4 @@
-// A race room: the lobby, the round and its results. Every player's game runs
+// A match room: the lobby, the round and its results. Every player's game runs
 // in their own browser; the room only keeps who is in it, relays where each
 // jet is, and decides when the round is over. No I/O: the relay feeds it
 // messages and delivers what it sends, and the tests drive it directly.
@@ -26,11 +26,11 @@ const NAME_LENGTH = 12;
 export function createRoom(send) {
   const players = new Map(); // id -> { id, name, color, state, score }, in join order
   let phase = 'lobby', host = null, round = 0, results = null;
-  let left = []; // this round's racers who disconnected, ranked with their last score
+  let left = []; // this round's contenders who disconnected, ranked with their last score
 
   const others = (id) => [...players.values()].filter((p) => p.id !== id);
   const broadcast = (message, except) => { for (const p of others(except)) send(p.id, message); };
-  const racers = () => [...[...players.values()].filter((p) => p.state === 'flying' || p.state === 'out'), ...left];
+  const contenders = () => [...[...players.values()].filter((p) => p.state === 'flying' || p.state === 'out'), ...left];
   const freeColor = () => COLORS.find((c) => ![...players.values()].some((p) => p.color === c));
 
   function announce() {
@@ -39,8 +39,8 @@ export function createRoom(send) {
   }
 
   function finishIfDone() {
-    if (phase !== 'race' || racers().some((p) => p.state === 'flying')) return;
-    results = racers()
+    if (phase !== 'playing' || contenders().some((p) => p.state === 'flying')) return;
+    results = contenders()
       .map(({ id, name, color, score }) => ({ id, name, color, score }))
       .sort((a, b) => b.score - a.score);
     phase = 'lobby';
@@ -55,7 +55,7 @@ export function createRoom(send) {
     },
     start(p) {
       if (p.id !== host || phase !== 'lobby') return;
-      phase = 'race';
+      phase = 'playing';
       round += 1;
       results = null;
       left = [];
@@ -63,20 +63,20 @@ export function createRoom(send) {
       broadcast({ t: 'start', round, delay: COUNTDOWN_MS });
     },
     pos(p, message) {
-      if (phase !== 'race' || p.state !== 'flying') return;
+      if (phase !== 'playing' || p.state !== 'flying') return;
       const { d, x, shape, reflect, mode } = message;
       p.score = Number(message.score) || 0;
       broadcast({ t: 'pos', id: p.id, d, x, shape, reflect, mode, score: p.score }, p.id);
       return 'quiet'; // too frequent to re-announce the room
     },
     out(p, { score }) {
-      if (phase !== 'race' || p.state !== 'flying') return;
+      if (phase !== 'playing' || p.state !== 'flying') return;
       p.state = 'out';
       p.score = Number(score) || p.score;
       finishIfDone();
     },
     end(p) {
-      if (p.id !== host || phase !== 'race') return;
+      if (p.id !== host || phase !== 'playing') return;
       for (const o of players.values()) if (o.state === 'flying') o.state = 'out';
       finishIfDone();
     },
@@ -89,7 +89,7 @@ export function createRoom(send) {
       if (!color || players.has(id)) return false;
       const name = String(hello?.name ?? '').trim().slice(0, NAME_LENGTH) || `Pilot ${id}`;
       // joining mid-round: watch, and fly from the next round
-      players.set(id, { id, name, color, state: phase === 'race' ? 'watching' : 'lobby', score: 0 });
+      players.set(id, { id, name, color, state: phase === 'playing' ? 'watching' : 'lobby', score: 0 });
       host ??= id;
       send(id, { t: 'welcome', id });
       announce();
@@ -100,7 +100,7 @@ export function createRoom(send) {
       const p = players.get(id);
       if (!p) return;
       players.delete(id);
-      if (phase === 'race' && p.state !== 'watching') left.push({ ...p, state: 'out' });
+      if (phase === 'playing' && p.state !== 'watching') left.push({ ...p, state: 'out' });
       if (host === id) host = players.keys().next().value ?? null;
       finishIfDone();
       announce();

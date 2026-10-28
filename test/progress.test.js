@@ -1,4 +1,4 @@
-// The race's distance and score readers (src/race/progress.js). Distance is
+// The match's distance and score readers (src/match/progress.js). Distance is
 // what puts other players' jets on your river, so the same distance has to
 // mean the same river in every game, whatever happened before: other
 // take-off times and speeds, crashes, and the restart point LooseJet moves.
@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { romReset, runFrame, Z, MEMORY_SIZE } from '../src/game/frame.js';
 import { NUM_BLOCKS, BLOCK_SIZE } from '../src/game/river-raid.js';
-import { createProgress, score } from '../src/race/progress.js';
+import { createProgress, score } from '../src/match/progress.js';
 
 const SECTION_BLOCKS = 32, SECTION_LINES = SECTION_BLOCKS * BLOCK_SIZE; // 16 patterns of 2 blocks
 const GAME_OVER = 0xff, PF1_PAGE = 0x01, PF2_PAGE = 0x02, PF_COLOR = 0x04, PF_ROAD = 0x80, TOP = NUM_BLOCKS - 1;

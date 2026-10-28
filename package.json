@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "serve": "serve -l tcp://127.0.0.1:8080 --no-clipboard",
-    "race": "node server/relay.js",
+    "match": "node server/relay.js",
     "lint": "biome lint --error-on-warnings .",
     "check": "pnpm run lint && node --test test/*.test.js",
     "snapshot:update": "node test/snapshot.test.js --update",

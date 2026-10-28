@@ -1,16 +1,17 @@
-// The race page (race.html): join a room on the relay (server/relay.js), pick
-// a color, and when the host starts a round everyone flies their own game of
-// River Raid at once. Your river, enemies and collisions are yours alone; the
-// other players are see-through jets drawn on top (src/race/ghosts.js). The
-// round lasts until the last jet is out, and the top score wins.
+// The match page (match.html): join a match (a room on the relay,
+// server/relay.js), pick a color, and when the host starts a round everyone
+// flies their own game of River Raid at once. Your river, enemies and
+// collisions are yours alone; the other players are see-through jets drawn on
+// top (src/match/ghosts.js). The round lasts until the last jet is out, and
+// the top score wins.
 //
 // The relay is the page's own server, or ?relay=wss://host for another one.
 
 import { SCREEN_WIDTH, SCREEN_LINES, drawScreen } from '../game/screen.js';
 import { KERNEL_LINES } from '../game/river-raid.js';
-import { createRacer } from '../race/racer.js';
-import { drawGhosts, COLOR_RGB } from '../race/ghosts.js';
-import { COLORS } from '../race/room.js';
+import { createPilot } from '../match/pilot.js';
+import { drawGhosts, COLOR_RGB } from '../match/ghosts.js';
+import { COLORS } from '../match/room.js';
 import { createTiaAudio } from './audio.js';
 import { readGamepad } from './gamepad.js';
 import { createFrameClock } from './frame-clock.js';
@@ -21,7 +22,7 @@ const KEYS = {
 };
 const POS_EVERY = 4; // frames between positions sent: 15 a second
 const AHEAD_FRAMES = 8; // a ghost is moved on at its last speed for at most this long
-const NAME_KEY = 'riverraid-race-name';
+const NAME_KEY = 'riverraid-match-name';
 const CODE = /^[A-Z]{4}$/;
 
 const hex = (rgb) => `#${rgb.toString(16).padStart(6, '0')}`;
@@ -42,7 +43,7 @@ function relayUrl(code) {
 
 const newCode = () => Array.from({ length: 4 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('');
 
-export function mountRace(root) {
+export function mountMatch(root) {
   const $ = (selector) => root.querySelector(selector);
   const canvas = $('canvas');
   const ctx = canvas.getContext('2d');
@@ -63,7 +64,7 @@ export function mountRace(root) {
   const muteButton = $('[data-mute]');
   const track = $('[data-track]');
 
-  const racer = createRacer();
+  const pilot = createPilot();
   const audio = createTiaAudio(new URL('./tia-sound.worklet.js', import.meta.url).href);
   const screen = document.createElement('canvas');
   screen.width = SCREEN_WIDTH;
@@ -74,17 +75,17 @@ export function mountRace(root) {
   const held = new Set();
 
   let socket = null, me = null, room = null;
-  let racing = false, sentOut = false, startAt = 0, frameNo = 0, muted = false, dirty = false;
+  let playing = false, sentOut = false, startAt = 0, frameNo = 0, muted = false, dirty = false;
   const ghosts = new Map(); // id -> { d, x, shape, reflect, mode, score, at, speed }
 
   nameInput.value = remembered();
-  const linked = new URLSearchParams(location.search).get('room')?.toUpperCase();
+  const linked = new URLSearchParams(location.search).get('match')?.toUpperCase();
   if (linked && CODE.test(linked)) codeInput.value = linked;
 
   const setHint = (text) => { hint.textContent = text; };
   const send = (message) => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message)); };
   const player = (id) => room?.players.find((p) => p.id === id);
-  const silence = () => audio.setSilent(muted || !racing);
+  const silence = () => audio.setSilent(muted || !playing);
 
   // *** the room ***
 
@@ -105,11 +106,11 @@ export function mountRace(root) {
     ws.addEventListener('close', () => {
       if (socket !== ws) return;
       socket = null;
-      stopRacing();
+      stopPlaying();
       roomPanel.hidden = true;
       joinForm.hidden = false;
       lobbyHint.textContent = '';
-      setHint(me === null ? 'Could not reach the race relay.' : 'Connection lost. Join again to fly the next round.');
+      setHint(me === null ? 'Could not reach the match relay.' : 'Connection lost. Join again to fly the next round.');
       me = null;
     });
   }
@@ -121,20 +122,20 @@ export function mountRace(root) {
       roomPanel.hidden = false;
       $('[data-room-code]').textContent = code;
       const url = new URL(location.href);
-      url.searchParams.set('room', code);
+      url.searchParams.set('match', code);
       history.replaceState(null, '', url);
       $('[data-share]').value = url.href;
       setHint('You are in. The host starts the round.');
     } else if (message.t === 'room') {
-      const wasRace = room?.phase === 'race';
+      const wasPlaying = room?.phase === 'playing';
       room = message;
-      if (wasRace && room.phase === 'lobby') stopRacing();
+      if (wasPlaying && room.phase === 'lobby') stopPlaying();
       for (const id of ghosts.keys()) if (player(id)?.state !== 'flying') ghosts.delete(id);
       showRoom();
     } else if (message.t === 'start') {
       ghosts.clear();
       startAt = performance.now() + message.delay;
-      racing = false;
+      playing = false;
       poster.hidden = true;
       countdown.hidden = false;
       canvas.focus({ preventScroll: true });
@@ -182,8 +183,8 @@ export function mountRace(root) {
     }));
     startButton.hidden = !host || room.phase !== 'lobby';
     startButton.textContent = room.results ? 'Fly again' : 'Start the round';
-    endButton.hidden = !host || room.phase !== 'race';
-    if (room.phase === 'race') {
+    endButton.hidden = !host || room.phase !== 'playing';
+    if (room.phase === 'playing') {
       lobbyHint.textContent = mine?.state === 'watching' ? 'A round is on. You fly the next one.' : 'Last jet flying ends the round. Top score wins.';
     } else {
       lobbyHint.textContent = host ? 'Start when everyone is in. Share the link to invite.' : 'Waiting for the host to start.';
@@ -203,8 +204,8 @@ export function mountRace(root) {
 
   // *** the round ***
 
-  function stopRacing() {
-    racing = false;
+  function stopPlaying() {
+    playing = false;
     countdown.hidden = true;
     startAt = 0;
     held.clear();
@@ -215,10 +216,10 @@ export function mountRace(root) {
   function beginFlying() {
     startAt = 0;
     countdown.hidden = true;
-    racing = true;
+    playing = true;
     sentOut = false;
     frameNo = 0;
-    racer.start();
+    pilot.start();
     silence();
     setHint('Arrows or WASD fly, Space or Z fires, M mutes. A jet left at READY takes off by itself.');
   }
@@ -226,20 +227,20 @@ export function mountRace(root) {
   function step() {
     const pad = readGamepad();
     const on = (control) => held.has(control) || !!pad?.[control];
-    racer.step({ up: on('up'), down: on('down'), left: on('left'), right: on('right'), fire: on('fire') });
+    pilot.step({ up: on('up'), down: on('down'), left: on('left'), right: on('right'), fire: on('fire') });
     frameNo += 1;
     dirty = true;
-    audio.update(racer.io.audio);
-    if (racer.over) {
+    audio.update(pilot.io.audio);
+    if (pilot.over) {
       if (!sentOut) {
         sentOut = true;
-        send({ t: 'out', score: racer.score });
-        setHint(`Game over: ${racer.score.toLocaleString('en-US')} points. Waiting for the last jet.`);
+        send({ t: 'out', score: pilot.score });
+        setHint(`Game over: ${pilot.score.toLocaleString('en-US')} points. Waiting for the last jet.`);
       }
       audio.setSilent(true);
       return;
     }
-    if (frameNo % POS_EVERY === 0) send({ t: 'pos', ...racer.position() });
+    if (frameNo % POS_EVERY === 0) send({ t: 'pos', ...pilot.position() });
   }
 
   // the other players where they are now, by their last position and speed
@@ -250,11 +251,11 @@ export function mountRace(root) {
   }
 
   function draw() {
-    const display = racer.display;
+    const display = pilot.display;
     if (!display) return;
-    drawScreen(display, racer.io, image);
-    const position = racer.position();
-    const labels = racer.over ? [] : drawGhosts(image, { d: position.d, mode: position.mode }, ghostsNow());
+    drawScreen(display, pilot.io, image);
+    const position = pilot.position();
+    const labels = pilot.over ? [] : drawGhosts(image, { d: position.d, mode: position.mode }, ghostsNow());
     screenCtx.putImageData(image, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(screen, 0, 0, canvas.width, canvas.height);
@@ -308,7 +309,7 @@ export function mountRace(root) {
     for (const what of playerList.querySelectorAll('.what')) {
       const p = player(Number(what.dataset.id));
       if (p?.state !== 'flying') continue;
-      const points = p.id === me ? racer.score : ghosts.get(p.id)?.score ?? 0;
+      const points = p.id === me ? pilot.score : ghosts.get(p.id)?.score ?? 0;
       what.textContent = points.toLocaleString('en-US');
     }
   }
@@ -319,7 +320,7 @@ export function mountRace(root) {
       if (left <= 0) beginFlying();
       else countdown.textContent = String(Math.ceil(left / 1000));
     }
-    const frames = tick(t, racing && !document.hidden);
+    const frames = tick(t, playing && !document.hidden);
     for (let i = 0; i < frames; i += 1) step();
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
@@ -337,7 +338,7 @@ export function mountRace(root) {
   joinForm.addEventListener('submit', (event) => {
     event.preventDefault();
     const code = event.submitter?.dataset.create !== undefined ? newCode() : codeInput.value.trim().toUpperCase();
-    if (!CODE.test(code)) { setHint('A room code is four letters.'); codeInput.focus(); return; }
+    if (!CODE.test(code)) { setHint('A match code is four letters.'); codeInput.focus(); return; }
     codeInput.value = code;
     connect(code);
   });
@@ -346,7 +347,7 @@ export function mountRace(root) {
   muteButton.addEventListener('click', toggleMute);
   $('[data-copy]').addEventListener('click', () => navigator.clipboard?.writeText($('[data-share]').value));
 
-  // no Enter (Game Reset) and no P (pause) in a race
+  // no Enter (Game Reset) and no P (pause) in a match
   canvas.addEventListener('keydown', (event) => {
     const control = KEYS[event.code];
     if (control) { event.preventDefault(); held.add(control); }

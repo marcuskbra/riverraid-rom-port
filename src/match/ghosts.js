@@ -3,14 +3,14 @@
 // kernel's collision checks: nothing in your game knows they are there.
 //
 // A ghost is where its player's jet is relative to yours: the same distance
-// (src/race/progress.js) puts it on your jet's lines, further on puts it
+// (src/match/progress.js) puts it on your jet's lines, further on puts it
 // higher up. The jet sits at the bottom, so only players ahead show; the
 // others get a marker on the edge they are past.
 
 import { KERNEL_LINES, playerPixels } from '../game/river-raid.js';
 import { jetTable } from '../game/frame.js';
 
-// the room's colors (src/race/room.js) as RGB
+// the room's colors (src/match/room.js) as RGB
 export const COLOR_RGB = Object.freeze({
   red: 0xe23b3b, orange: 0xf28a1c, pink: 0xf06cc8, white: 0xf2f4fa, cyan: 0x4ff2dc,
   lime: 0x7cf24a, purple: 0x9d5cf0, brown: 0xa0703c, black: 0x20202a, gray: 0x9a9aa8,

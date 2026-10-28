@@ -1,4 +1,4 @@
-// The race relay (server/relay.js) end to end: real WebSockets, two players.
+// The match relay (server/relay.js) end to end: real WebSockets, two players.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { startRelay } from '../server/relay.js';
@@ -24,7 +24,7 @@ async function connect(port, code, name) {
   return { ws, id, send, next, inbox };
 }
 
-test('two players race through the relay', async () => {
+test('two players play a match through the relay', async () => {
   const relay = await startRelay({ port: 0 });
   try {
     const ana = await connect(relay.port, 'ABCD', 'Ana');
@@ -70,7 +70,7 @@ test('the relay serves the site but not what is around it', async () => {
     const page = await get('/index.html');
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-type'), /text\/html/);
-    const module = await get('/src/race/room.js');
+    const module = await get('/src/match/room.js');
     assert.match(module.headers.get('content-type'), /javascript/);
     for (const path of ['/.git/config', '/node_modules/ws/package.json', '/%2e%2e/%2e%2e/etc/passwd', '/nope.js']) {
       assert.equal((await get(path)).status, 404, path);

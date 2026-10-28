@@ -1,9 +1,9 @@
-// The race relay: one WebSocket per player at /room/CODE, a room per code
-// (src/race/room.js), made on the first join and dropped when the last
+// The match relay: one WebSocket per player at /room/CODE, a room per match
+// code (src/match/room.js), made on the first join and dropped when the last
 // player leaves. It also serves the site's files, so one command runs the
-// whole race locally:
+// whole match locally:
 //
-//   pnpm run race    then open http://127.0.0.1:8080/race.html
+//   pnpm run match    then open http://127.0.0.1:8080/match.html
 //
 // Every player's game runs in their browser; the relay only passes messages.
 
@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { createRoom } from '../src/race/room.js';
+import { createRoom } from '../src/match/room.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = {
@@ -105,5 +105,5 @@ export function startRelay({ port = 8080, host = '127.0.0.1', root = ROOT } = {}
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { port } = await startRelay({ port: Number(process.env.PORT) || 8080, host: process.env.HOST || '127.0.0.1' });
-  console.log(`River Raid race: http://127.0.0.1:${port}/race.html`);
+  console.log(`River Raid match: http://127.0.0.1:${port}/match.html`);
 }

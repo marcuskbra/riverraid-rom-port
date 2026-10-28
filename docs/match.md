@@ -1,66 +1,70 @@
-# River Raid Race
+# River Raid Match
 
 A multiplayer mode for playing with remote teammates. Everyone flies their own game of River Raid at the same time, on the same river, and sees the other players' jets drawn see-through on it. The last jet flying ends the round, and the top score wins.
 
 ```sh
-pnpm run race      # then open http://127.0.0.1:8080/race.html
+pnpm run match     # then open http://127.0.0.1:8080/match.html
 ```
 
 ## The idea
 
-The team is remote, so modes that need one machine (shared keyboard, split screen) are out. Co-op, where players share one river and its enemies, was dropped too. The ghost race is also much simpler to build: co-op needs one game state kept in sync over the network, with every crash and shot agreed on.
+The team is remote, so modes that need one machine (shared keyboard, split screen) are out. Co-op, where players share one river and its enemies, was dropped too. A ghost match is also much simpler to build: co-op needs one game state kept in sync over the network, with every crash and shot agreed on.
 
-The race takes its shape from two things:
+The players compete only through their scores. Nobody can shoot, block or help another player, so each game would play the same way if the others were absent. "Match" names that: a contest with a ranking, which promises no interaction.
 
-- **The lobby works like Among Us.** Someone makes a room and shares a four-letter code or a link. Everyone joins, picks a color, and the host starts the round.
+A match takes its shape from two things:
+
+- **The lobby works like Among Us.** Someone makes a match and shares a four-letter code or a link. Everyone joins, picks a color, and the host starts the round.
 - **There is one river with every jet on it.** Each player's own game is a normal one-player River Raid. The other jets are see-through ghosts in their players' colors. Helicopters, ships, planes, fuel depots and bridges belong to your game only. You can't hit another player, shoot their enemies or take their fuel.
 
 The ghosts don't need a shared game state, because the river is already shared. River Raid's river is the same in every game (see "Why every player sees the same river"). So a position along the river means the same place for everyone, and a jet's position is all the network carries.
 
+In the code, a match is a room (`src/match/room.js`), and the page and the docs say "match" to players.
+
 ## Rules
 
-- **One round, one game each.** A round starts every player's game at once (give or take network latency: each browser counts down 3 seconds from when it receives the start). Each game has the cartridge's usual jets.
+- **One round, one game each.** A round starts every player's game at once (give or take network latency: each browser counts down 3 seconds from when it receives the start). Each game has the cartridge's usual jets: the first one plus 3 in reserve, and one more for every 10,000 points.
 - **Last jet flying ends the round.** A player is out at their game's own game over. When everyone is out, the room ranks the round by score.
 - **Top score wins.** Distance doesn't count toward the result. It is shown on the distance bar and decides where ghosts appear.
 - **Nobody can hold a round up.**
-  - There is no Game Reset and no pause in a race (Enter, P and the gamepad's Start and Back do nothing).
+  - There is no Game Reset and no pause in a match (Enter, P and the gamepad's Start and Back do nothing).
   - A jet left waiting at READY takes off by itself after 5 seconds.
   - The host can end the round at any time; jets still flying keep the score they have.
 - **Leaving counts as out.** A player who closes the tab or loses the connection mid-round is ranked with the last score they sent.
-- **Late players watch.** Someone who joins during a round sees the room and flies from the next round.
-- **Up to 10 players per room**, one per color. The colors are Among Us colors, without blue (it disappears on the river) and yellow (the color of your own jet).
+- **Late players watch.** Someone who joins during a round sees the match and flies from the next round.
+- **Up to 10 players per match**, one per color. The colors are Among Us colors, without blue (it disappears on the river) and yellow (the color of your own jet).
 
 ## How it fits together
 
 ```
- browser (race.html)                      relay (server/relay.js)
+ browser (match.html)                     relay (server/relay.js)
  ┌──────────────────────────────┐         ┌────────────────────────────┐
- │ src/web/race.js              │  ws     │ static files (the site)    │
+ │ src/web/match.js             │  ws     │ static files (the site)    │
  │  lobby, countdown, input,    │◄───────►│ /room/ABCD  WebSocket      │
  │  drawing, sound              │  JSON   │   one room per code:       │
- │                              │         │   src/race/room.js         │
- │ src/race/racer.js            │         └────────────────────────────┘
+ │                              │         │   src/match/room.js        │
+ │ src/match/pilot.js           │         └────────────────────────────┘
  │  your game (src/game/)       │                ▲          ▲
- │ src/race/progress.js         │                │          │
+ │ src/match/progress.js        │                │          │
  │  distance and score from RAM │          other players' browsers
- │ src/race/ghosts.js           │
+ │ src/match/ghosts.js          │
  │  other jets on your picture  │
  └──────────────────────────────┘
 ```
 
 - Every game runs in its own player's browser. The relay never runs a game. It keeps who is in the room, passes positions along and decides when the round is over.
 - Each client is the authority on its own game. Nothing a client receives changes its game: ghosts are painted on the picture after the game draws it, so they never reach the collision checks.
-- `src/race/` has no DOM, so all of it runs in Node: the tests drive the room, the racer and the ghosts directly. `src/web/race.js` is the only browser code.
+- `src/match/` has no DOM, so all of it runs in Node: the tests drive the room, the pilot and the ghosts directly. `src/web/match.js` is the only browser code.
 
 | File | What it does |
 | --- | --- |
-| `race.html` | The page: canvas, lobby panel, scoreboard, distance bar, touch controls. |
-| `src/web/race.js` | The page's loop: joins a room, shows the lobby and results, runs the countdown, feeds input to the racer, sends positions, draws ghosts and their labels. |
-| `src/race/racer.js` | One player's game in a race: RESET at the start, no pause, auto take-off, out at game over, and the position of the jet on screen. |
-| `src/race/progress.js` | Reads how far along the river a game is, and its score, from the game's RAM. |
-| `src/race/ghosts.js` | Paints the other jets into the picture and returns the labels to draw. |
-| `src/race/room.js` | A room's lobby, colors, host, rounds and results. No I/O. |
-| `server/relay.js` | The Node server: serves the site and gives each room a WebSocket per player. |
+| `match.html` | The page: canvas, lobby panel, scoreboard, distance bar, touch controls. |
+| `src/web/match.js` | The page's loop: joins a match, shows the lobby and results, runs the countdown, feeds input to the pilot, sends positions, draws ghosts and their labels. |
+| `src/match/pilot.js` | One pilot's game in a match: RESET at the start, no pause, auto take-off, out at game over, and the position of the jet on screen. |
+| `src/match/progress.js` | Reads how far along the river a game is, and its score, from the game's RAM. |
+| `src/match/ghosts.js` | Paints the other jets into the picture and returns the labels to draw. |
+| `src/match/room.js` | A match's lobby, colors, host, rounds and results. No I/O. |
+| `server/relay.js` | The Node server: serves the site and gives each match a WebSocket per player. |
 
 ## Why every player sees the same river
 
@@ -72,7 +76,7 @@ Enemy movement is different: it uses a per-frame random number and the frame cou
 
 ## Distance: where a jet is on the river
 
-`createProgress()` in `src/race/progress.js` returns a function that reads a game's distance in lines from its RAM:
+`createProgress()` in `src/match/progress.js` returns a function that reads a game's distance in lines from its RAM:
 
 ```
 distance = (index of the top block - 14) * 32 + blockOffset
@@ -92,7 +96,7 @@ Score is read from the six score digits the status display uses (`score()` in th
 
 ## A round, message by message
 
-All messages are JSON over one WebSocket per player, at `/room/CODE`. The full list is at the top of `src/race/room.js`.
+All messages are JSON over one WebSocket per player, at `/room/CODE`. The full list is at the top of `src/match/room.js`.
 
 ```
  Ana (host)              relay / room                 Bo
@@ -113,7 +117,7 @@ All messages are JSON over one WebSocket per player, at `/room/CODE`. The full l
     │◄── room {results}     │──────────►  room {results}│  back to the lobby
 ```
 
-- **`room`** is the whole room state (`phase`, `host`, `round`, `players`, `results`). The room sends it to everyone whenever any of it changes, so a client never patches state. It just redraws from the latest one.
+- **`room`** is the whole room state (`phase`, `host`, `round`, `players`, `results`). `phase` is `lobby` or `playing`. The room sends it to everyone whenever any of it changes, so a client never patches state. It just redraws from the latest one.
 - **`pos`** is `{ d, x, shape, reflect, mode, score }`. That is the jet's distance, its x position, which jet shape it shows (straight or banking) and whether it is mirrored, the game mode and the score. It is about 80 bytes. The room forwards it to the other players without re-sending the room state, and keeps the score so that a player who leaves is ranked with it.
 - The room ignores messages that don't fit the moment: a `start` from someone who isn't the host, a color that is taken, a `pos` outside a round, and so on.
 - The host is the first player to join. When the host leaves, the next player in join order becomes host.
@@ -133,18 +137,18 @@ All messages are JSON over one WebSocket per player, at `/room/CODE`. The full l
 
 ### Smoothing
 
-Positions arrive 15 times a second, while the river scrolls up to 2 lines a frame. A ghost drawn only where its last position said would jump up to 8 lines at a time. Between positions, `race.js` moves each ghost on at the speed its last two positions give. The speed is capped at 2 lines a frame and the ghost is moved on for at most 8 frames, so a lost or late packet doesn't send it away. While the ghost's own jet is exploding, it isn't moved on.
+Positions arrive 15 times a second, while the river scrolls up to 2 lines a frame. A ghost drawn only where its last position said would jump up to 8 lines at a time. Between positions, `match.js` moves each ghost on at the speed its last two positions give. The speed is capped at 2 lines a frame and the ghost is moved on for at most 8 frames, so a lost or late packet doesn't send it away. While the ghost's own jet is exploding, it isn't moved on.
 
 ### The jet on screen, not the jet in RAM
 
-The game draws the screen at the start of each frame and moves the jet after. So the picture always shows the jet as the frame found it. `racer.js` reads the jet's position before each frame runs, and sends that one, so a ghost lines up with the picture its player sees.
+The game draws the screen at the start of each frame and moves the jet after. So the picture always shows the jet as the frame found it. `pilot.js` reads the jet's position before each frame runs, and sends that one, so a ghost lines up with the picture its player sees.
 
 ## Running it
 
-- `pnpm run race` starts the relay on `127.0.0.1:8080`. `PORT` and `HOST` change that (`HOST=0.0.0.0` to reach it from other machines on the network).
+- `pnpm run match` starts the relay on `127.0.0.1:8080`. `PORT` and `HOST` change that (`HOST=0.0.0.0` to reach it from other machines on the network).
 - The relay serves the site too, so the page and its WebSocket share one origin. The page uses `wss://` when it was loaded over HTTPS.
-- `race.html?relay=wss://host` points the page at another relay. This is how a copy of the page on GitHub Pages, which only serves files, would reach one.
-- `race.html?room=ABCD` fills in the room code. The share link is that URL.
+- `match.html?relay=wss://host` points the page at another relay. This is how a copy of the page on GitHub Pages, which only serves files, would reach one.
+- `match.html?match=ABCD` fills in the match code. The share link is that URL.
 - Rooms live in the relay's memory. A room is made on the first join and dropped when its last player leaves. Messages over 1 KB close the connection.
 
 ### Playing with people elsewhere
@@ -163,9 +167,9 @@ GitHub Pages can't run the relay, so a game with remote teammates needs it somew
 | --- | --- |
 | `test/progress.test.js` | The same distance is the same river in every game, across crashes and restarts in the section before, the same or the next. A crash away from a section boundary takes the jet back. Different take-off times read the same distance at the same river. The score decoder. |
 | `test/room.test.js` | Joining, names, colors, host hand-over, start, positions to the others only, ending when the last jet is out, the host ending a round, leaving mid-round, late players watching, ignored messages. |
-| `test/relay.test.js` | Two players race through a real relay over WebSockets; a leave counts as out; rooms with different codes stay apart; the static server hides dotfiles, `node_modules` and paths outside the site. |
+| `test/relay.test.js` | Two players play a match through a real relay over WebSockets; a leave counts as out; rooms with different codes stay apart; the static server hides dotfiles, `node_modules` and paths outside the site. |
 | `test/ghosts.test.js` | A ghost at your distance covers your own jet pixel for pixel; one further ahead is that many lines higher; distances between lines paint the nearest line; off-screen ghosts get edge markers; no ghosts during the scroll-in. |
-| `test/racer.test.js` | Nothing runs before the round; auto take-off after exactly 5 seconds at READY; fire takes off at once; the position is the jet on screen; game over ends the game and the next round starts a new one. |
+| `test/pilot.test.js` | Nothing runs before the round; auto take-off after exactly 5 seconds at READY; fire takes off at once; the position is the jet on screen; game over ends the game and the next round starts a new one. |
 
 The page itself was checked by driving headless Chrome tabs through the relay: a round with two players (lobby, color pick, countdown, ghosts and labels on both screens, live scores, the host ending the round, results), a rematch, a third player joining mid-round, and a round that ended by itself when both games ran out of jets. That script isn't part of the repo.
 
@@ -174,10 +178,10 @@ The page itself was checked by driving headless Chrome tabs through the relay: a
 - **A hidden tab freezes its game.** Browsers stop animation frames in background tabs, so a player who switches tabs stops flying and stops sending positions. The round waits for them until they come back or the host ends it.
 - **No reconnect.** A dropped player is out for the round. Joining again makes them a new player who watches until the next round.
 - **Scores are trusted.** Each client reports its own score, so a modified client could send any number. Fine among teammates; a public game would need the relay to check or replay games.
-- **Ties** rank players still in the room in join order, then players who left.
+- **Ties** rank players still in the match in join order, then players who left.
 - **The bottom of the river after a respawn is partly unchecked.** A one-off check (not in the repo) compared about 28,000 blocks on screen with other games' blocks at the same distance, with no differences. Two cases had nothing reliable to compare:
   - Blocks 0 and 1 in the games that reached later sections, because the test pilot rewrites them to stay alive.
   - Blocks 0 to 9 after a respawn in the first section, because no other game recorded that stretch.
 
   Ghosts are hidden during the scroll-in (about 80 frames), but they are drawn at READY, which can last up to 5 seconds. If those bottom blocks did differ between games, a ghost near the bottom at READY could look like it sits on a bank. It can't hit anything either way.
-- **The relay has no limits** beyond the 1 KB message size and 10 players per room: no rate limits, no auth, and any room code can be joined by anyone who knows it.
+- **The relay has no limits** beyond the 1 KB message size and 10 players per match: no rate limits, no auth, and any match code can be joined by anyone who knows it.
