@@ -25,6 +25,8 @@ Starts the match relay (`server/relay.js`), which also serves the site, and prin
 
 GitHub Pages only serves files, so playing with people elsewhere needs the relay on a host they can reach. `match.html?relay=wss://host` points the page at a relay other than its own server. `PORT` and `HOST` set where the relay listens (default `127.0.0.1:8080`).
 
+To test a full match alone, `pnpm run bots -- --code ABCD` sends 9 bot pilots into your match ABCD on the relay. They fly real games on an autopilot and print the relay's traffic and latency every 5 seconds. [docs/bots.md](docs/bots.md) describes them.
+
 [docs/match.md](docs/match.md) describes the idea, the rules and how it works: why every game has the same river, how a game's distance is read from its RAM, the messages of a round, how ghosts are drawn, the tests and the known gaps.
 
 ## Phones
@@ -41,7 +43,8 @@ src/game/   pure game logic and drawing, no DOM: runs in Node and the browser
 src/match/  the match: rooms, distance, ghosts and a pilot's game, no DOM
 src/web/    browser code: canvas, keyboard, gamepad, touch and Web Audio
 server/     the match relay (Node, WebSocket)
-docs/       the match's design (match.md)
+scripts/    bots.js and autopilot.js: bot pilots for tests
+docs/       the match's design (match.md, bots.md)
 test/       smoke, snapshot, taller river, frame pacing and preload tests
 ```
 

@@ -150,7 +150,7 @@ The game draws the screen at the start of each frame and moves the jet after. So
 - `match.html?relay=wss://host` points the page at another relay. This is how a copy of the page on GitHub Pages, which only serves files, would reach one.
 - `match.html?match=ABCD` fills in the match code. The share link is that URL.
 - Rooms live in the relay's memory. A room is made on the first join and dropped when its last player leaves. Messages over 1 KB close the connection.
-- `pnpm run bots -- --code ABCD` sends 9 bot pilots into match ABCD, for a full match and a look at the relay's traffic and latency. Without `--code`, the bots make a match and start its rounds. The options are at the top of `scripts/bots.js`.
+- `pnpm run bots -- --code ABCD` sends 9 bot pilots into match ABCD, for a full match and a look at the relay's traffic and latency. Without `--code`, the bots make a match and start its rounds. [bots.md](bots.md) describes how to run them, how to read their report and how their autopilot flies.
 
 ### Playing with people elsewhere
 
