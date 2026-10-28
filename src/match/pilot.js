@@ -55,6 +55,7 @@ export function createPilot() {
     get display() { return display; },
     get io() { return io; }, // the last frame's TIA writes: colors and sound
     get mode() { return mem[Z.gameMode]; },
+    get memory() { return mem; }, // the game's RAM, for tools that read it (scripts/autopilot.js)
     get over() { return over; },
     get score() { return score(mem); },
     // where the jet on screen is, for the other players: { d, x, shape, reflect, mode, score }

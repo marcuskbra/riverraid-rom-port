@@ -1,5 +1,6 @@
 // A one-off load test: bot pilots join a match on the relay and fly real
-// games (src/match/pilot.js) with random controls, so you can see a full
+// games (src/match/pilot.js) on an autopilot (scripts/autopilot.js) that
+// dodges banks and enemies and looks for fuel, so you can see a full
 // match and how the relay copes. Every 5 seconds it prints the traffic, the
 // position latency (bot to relay to bot) and how far the bots' loop lags.
 // All bots share one thread, so the latency includes the time they wait for
@@ -16,6 +17,7 @@
 // --start 10 (seconds in the lobby before the bots' host starts a round).
 
 import { createPilot } from '../src/match/pilot.js';
+import { autopilot } from './autopilot.js';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : fallback; };
@@ -51,7 +53,7 @@ function send(bot, message) {
 function makeBot(n) {
   const bot = {
     n, id: null, room: null, pilot: createPilot(), flying: false, startAt: 0, frame: 0,
-    steer: 0, steerFor: 0, up: false, lobbySince: null, closed: false,
+    autopilot: {}, lobbySince: null, closed: false,
     ws: new WebSocket(`${RELAY}/room/${CODE}`),
   };
   bot.ws.addEventListener('open', () => send(bot, { t: 'hello', name: `Bot ${n}` }));
@@ -91,6 +93,7 @@ function step(bot, now) {
   if (bot.startAt && now >= bot.startAt) {
     bot.startAt = 0;
     bot.pilot.start();
+    bot.autopilot = { style: bot.autopilot.style }; // a new game, the same taste
     bot.flying = true;
     bot.frame = 0;
   }
@@ -98,15 +101,9 @@ function step(bot, now) {
   else if (HOSTING && bot.room?.host === bot.id) hostLobby(bot, now);
 }
 
-// random flying: a new stick direction and speed every 10 to 50 frames, always firing
+// the stick comes from scripts/autopilot.js
 function fly(bot, now) {
-  bot.steerFor -= 1;
-  if (bot.steerFor <= 0) {
-    bot.steer = [-1, 0, 0, 1][Math.floor(Math.random() * 4)];
-    bot.steerFor = 10 + Math.floor(Math.random() * 40);
-    bot.up = Math.random() < 0.5;
-  }
-  bot.pilot.step({ left: bot.steer < 0, right: bot.steer > 0, up: bot.up, fire: true });
+  bot.pilot.step(autopilot(bot.pilot, bot.autopilot));
   bot.frame += 1;
   if (bot.pilot.over) {
     bot.flying = false;
