@@ -11,6 +11,9 @@ import {
   PF_PAGE_FC, PF_PAGE_FD, BANK_PTR_TAB, PAGE_FLAG_TAB, SHAPE_POS_TAB, ENEMY_ID_TAB, ROAD_COLOR_TAB,
 } from './data/playfield.js';
 
+export const NUM_BLOCKS = 8;
+const LISTS = 0x100; // the block lists, past the zero page
+
 // zero page addresses (Jentzsch lines 168-275)
 export const ZP = Object.freeze({
   dXSpeed: 0x87, prevPF1PatId: 0x88, PF_State: 0x89, sectionEnd: 0x8a, blockOffset: 0x8b, posYLo: 0x8c,
@@ -18,14 +21,14 @@ export const ZP = Object.freeze({
   fuelLo: 0xb8, sectionBlock: 0xb9, PF1PatId: 0xbc, level: 0xbd, randomLoSave: 0xbe, randomHiSave: 0xbf,
   randomLo: 0xe9, randomHi: 0xea, randomLoSave2: 0xeb, randomHiSave2: 0xec,
   reflect0: 0xe0, hitEnemyIdx: 0xe2, PFCrashFlag: 0xe4, missileFlag: 0xe6, collidedEnemy: 0xe8, missileX: 0xf5,
-  // The ROM keeps 6 entries per list at $8E-$B1. The port's 8 blocks don't fit
+  // The ROM keeps 6 entries per list at $8E-$B1. The port's NUM_BLOCKS don't fit
   // the zero page, so the lists sit past it in the ROM's order, NUM_BLOCKS apart:
   // reading one past a list's end still lands on the next list's first entry.
-  blockLst: 0x100, XPos1Lst: 0x108, State1Lst: 0x110, Shape1IdLst: 0x118, PF1Lst: 0x120, PF2Lst: 0x128,
+  blockLst: LISTS, XPos1Lst: LISTS + NUM_BLOCKS, State1Lst: LISTS + 2 * NUM_BLOCKS,
+  Shape1IdLst: LISTS + 3 * NUM_BLOCKS, PF1Lst: LISTS + 4 * NUM_BLOCKS, PF2Lst: LISTS + 5 * NUM_BLOCKS,
 });
 
-export const MEMORY_SIZE = 0x130; // the port's RAM: the zero page and the block lists
-export const NUM_BLOCKS = 8;
+export const MEMORY_SIZE = LISTS + 6 * NUM_BLOCKS; // the port's RAM: the zero page and the block lists
 const BLOCK_SIZE = 32;
 const SECTION_BLOCKS = 16;
 
