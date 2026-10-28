@@ -31,7 +31,7 @@ export const ZP = Object.freeze({
 });
 
 export const MEMORY_SIZE = LISTS + 6 * NUM_BLOCKS; // the port's RAM: the zero page and the block lists
-const BLOCK_SIZE = 32;
+export const BLOCK_SIZE = 32;
 const SECTION_BLOCKS = 16;
 
 const BLOCK_FLAGS = Object.freeze({

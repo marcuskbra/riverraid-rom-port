@@ -143,7 +143,7 @@ function preKernel(mem, io) {
 
 // shapePtr0 points into page $FC (jet shapes, or pattern bytes after game over)
 const pageFC = (low) => (low < 0xbc ? PF_PAGE_FC[low] : JET_PAGE_TAIL[low - 0xbc]) ?? 0;
-const jetTable = (low) => Array.from({ length: 18 }, (_, i) => pageFC((low + 1 + i) & 0xff));
+export const jetTable = (low) => Array.from({ length: 18 }, (_, i) => pageFC((low + 1 + i) & 0xff));
 
 // The kernel's effect on RAM: collision results per block.
 // Also returns what the kernel displays: per-line playfield/object data, pixel
