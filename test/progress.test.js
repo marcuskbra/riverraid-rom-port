@@ -105,13 +105,16 @@ test('the same distance is the same river in every game, across crashes', () => 
   assert.ok(moved.includes(0) && moved.includes(-1) && moved.includes(1), `restart sections ${moved}`);
 });
 
-test('a crash takes the jet back, never forward', () => {
+// with a section boundary on screen LooseJet can restart in the next section
+// instead (see above), so this pilot only crashes with none on screen
+test('a crash away from a section boundary takes the jet back', () => {
   const game = newGame();
   const { mem, io } = game;
   const progress = createProgress();
   let before = null, mode = mem[Z.gameMode], checked = 0;
   for (let frame = 0; frame < 6000 && mem[Z.gameMode] !== GAME_OVER; frame += 1) {
-    pilot(game, frame, () => 1, (f) => f % 700 > 500);
+    const boundary = !!((mem[Z.blockLst] ^ mem[Z.blockLst + TOP]) & PF_COLOR);
+    pilot(game, frame, () => 1, (f) => f % 700 > 500 && !boundary);
     game.display = runFrame(mem, io).display;
     const distance = progress(mem);
     if (mode >= 0x80 && mem[Z.gameMode] < 0x80 && before !== null) {

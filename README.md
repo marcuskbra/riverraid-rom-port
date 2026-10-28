@@ -25,6 +25,8 @@ Starts the race relay (`server/relay.js`), which also serves the site, and print
 
 GitHub Pages only serves files, so playing with people elsewhere needs the relay on a host they can reach. `race.html?relay=wss://host` points the page at a relay other than its own server. `PORT` and `HOST` set where the relay listens (default `127.0.0.1:8080`).
 
+[docs/race.md](docs/race.md) describes the idea, the rules and how it works: why every game has the same river, how a game's distance is read from its RAM, the messages of a round, how ghosts are drawn, the tests and the known gaps.
+
 ## Phones
 
 Touch controls (D-pad and Fire) appear on touch screens. Full screen keeps the game and its controls on screen: it uses the browser's fullscreen where it is allowed (desktop, Android, iPad) and the same layout without it on iPhone, where Safari only lets video go fullscreen. On iPhone, Share → Add to Home Screen installs it as a web app (`manifest.webmanifest`, `img/icon-*.png`) that opens without the browser bar.
@@ -39,6 +41,7 @@ src/game/   pure game logic and drawing, no DOM: runs in Node and the browser
 src/race/   the race: rooms, distance, ghosts and a player's game, no DOM
 src/web/    browser code: canvas, keyboard, gamepad, touch and Web Audio
 server/     the race relay (Node, WebSocket)
+docs/       the race's design (race.md)
 test/       smoke, snapshot, taller river, frame pacing and preload tests
 ```
 
