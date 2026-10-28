@@ -11,7 +11,7 @@
 // io.colup0 and io.audio = { c0, f0, v0, c1, f1, v1 } (TIA values).
 
 import {
-  ZP as RIVER_ZP, MEMORY_SIZE, NUM_BLOCKS, KERNEL_LINES, saveSection, runSetBlockVars,
+  ZP as RIVER_ZP, MEMORY_SIZE, NUM_BLOCKS, KERNEL_LINES, saveSection, newBlock, runSetBlockVars,
   kernelPlayfieldLines, kernelObjectLines, kernelLineMasks, collisionTimes, applyKernelCollisions,
 } from './river-raid.js';
 import { INIT_TAB, COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './data/playfield.js';
@@ -34,6 +34,7 @@ export const LOW = Object.freeze({
 });
 const GAME = Object.freeze({
   DIGIT_H: 8, INTRO_SCROLL: 48, NUM_LINES: KERNEL_LINES, MAX_LEVEL: 48, MIN_MISSILE: 13, MAX_MISSILE: KERNEL_LINES + 1, MISSILE_SPEED: 6,
+  MISSILE_OFF: KERNEL_LINES + 20, // past the river's top ($B4 on the cartridge)
   ID_PLANE: 4, ID_SHIP: 7, ID_BRIDGE: 8, ID_EXPLOSION1: 1, ID_EXPLOSION2: 2, DARK_RED: 0x42,
   ENEMY_MOVE: 0x40, PF_COLLIDE: 0x20, PATROL: 0x10, PF_ROAD: 0x80, PF_COLOR: 0x04, DIRECTION: 0x08,
 });
@@ -54,11 +55,13 @@ function setScorePtrs(mem, digit) {
 
 // GameInit ($FA8F): count = number of InitTab bytes (23 for a new jet, 39 at
 // reset). InitTab starts with 6 PF1Lst and 6 PF2Lst bytes, all the straight
-// river; the rest goes from missileY on.
+// river; the rest goes from missileY on. InitTab's missileY ($B4) would put a
+// missile in the taller river, so it becomes MISSILE_OFF.
 function gameInit(mem, count) {
   mem.fill(INIT_TAB[0], Z.PF1Lst, Z.PF1Lst + NUM_BLOCKS);
   mem.fill(INIT_TAB[6], Z.PF2Lst, Z.PF2Lst + NUM_BLOCKS);
   mem.set(INIT_TAB.slice(12, count), Z.missileY);
+  mem[Z.missileY] = GAME.MISSILE_OFF;
   mem.fill(0, Z.dXSpeed, Z.bridgeExplode + 1);
   for (const list of [Z.XPos1Lst, Z.State1Lst, Z.Shape1IdLst]) mem.fill(0, list, list + NUM_BLOCKS);
   mem.fill(mem[Z.level] & 1 ? 1 | GAME.PF_COLOR : 1, Z.blockLst, Z.blockLst + NUM_BLOCKS); // PF1_PAGE_FLAG
@@ -76,7 +79,7 @@ function swapPlayers(mem) {
 
 function contFinish(mem, mode) {
   mem[Z.gameMode] = mode;
-  mem[Z.missileY] = GAME.NUM_LINES + 20;
+  mem[Z.missileY] = GAME.MISSILE_OFF;
 }
 
 // LooseJet ($FF5C): start the explosion sound, fix the restart point when a
@@ -108,7 +111,7 @@ function finishGame(mem) {
 
 // Reset ($F004) with x = first address to clear (0 at power-on, $F7 for the RESET switch)
 export function romReset(mem, x = 0) {
-  mem.fill(0, Math.max(x, 0x80), 0x100);
+  mem.fill(0, Math.max(x, 0x80), MEMORY_SIZE);
   setScorePtrs(mem, 0);
   for (let i = 1; i < 12; i += 2) mem[Z.scorePtr1 + i] = 0xfb; // >Zero
   gameInit(mem, 39);
@@ -241,12 +244,15 @@ function readJoystick(mem, io) {
   return stick !== 0x0f || !((player ? io.inpt5 : io.inpt4) & 0x80);
 }
 
-// A new jet: the river restarts at the last saved section.
+// A new jet: the river restarts at the last saved section. The blocks above
+// the cartridge's 6 come in at once, so the intro scrolls the road to block 1
+// with the cartridge's river behind it.
 function initPlayer(mem) {
   gameInit(mem, 23); // PF1Lst..shapePtr0+1
   mem[END(Z.blockLst)] |= GAME.PF_ROAD;
   mem[Z.randomLo] = mem[Z.randomLoSave];
   mem[Z.randomHi] = mem[Z.randomHiSave];
+  for (let i = 6; i < NUM_BLOCKS; i += 1) newBlock(mem);
 }
 
 // gameMode is 0 while playing and 0xff after the game. From 0x80 up it counts
@@ -377,7 +383,7 @@ function explode(mem, i, explosionId) {
     mem[Z.XPos1Lst + i] = 4;
     mem[Z.sectionEnd] += 1;
   }
-  if (addScore(mem, id)) mem[Z.missileY] = 0xb4; // disable missile
+  if (addScore(mem, id)) mem[Z.missileY] = GAME.MISSILE_OFF;
   else looseJet(mem, 1, 0x1f);
 }
 
@@ -385,7 +391,7 @@ function explode(mem, i, explosionId) {
 // B makes the missile follow the jet.
 function moveMissile(mem, io) {
   const player = mem[Z.player];
-  let y = 0xb4, aim = false; // 0xb4: disabled
+  let y = GAME.MISSILE_OFF, aim = false;
   if (mem[Z.missileFlag] & 0x80) { // no collision
     if (mem[Z.missileY] <= GAME.MAX_MISSILE) {
       y = mem[Z.missileY] + GAME.MISSILE_SPEED;

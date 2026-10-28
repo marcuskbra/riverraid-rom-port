@@ -22,7 +22,7 @@ const SCREEN_PLAYING = 'playing';
 const SCREEN_GAME_OVER = 'game-over';
 const RESET_HOLD_FRAMES = 2;
 
-// The ROM's zero page; every variable lives at its ROM address.
+// The ROM's zero page, every variable at its ROM address, plus the block lists past it.
 const memory = new Uint8Array(MEMORY_SIZE);
 const pressed = new Set();
 const io = { swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 };

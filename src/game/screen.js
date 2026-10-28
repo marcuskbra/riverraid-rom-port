@@ -1,7 +1,8 @@
 // Draws one frame of the port into a 160 x SCREEN_LINES ImageData: the
-// 160-line kernel, the kernel's last playfield line once more, then the ROM's
-// status display. Colors are TIA bytes looked up in Stella's NTSC palette;
-// HMOVE on every line blanks the first 8 pixels; priority P0/M0 > P1 > PF > BK.
+// KERNEL_LINES kernel lines, the kernel's last playfield line once more, then
+// the ROM's status display. Colors are TIA bytes looked up in Stella's NTSC
+// palette; HMOVE on every line blanks the first 8 pixels; priority P0/M0 > P1 >
+// PF > BK.
 
 import { KERNEL_LINES } from './river-raid.js';
 import { statusLinePixels } from './status.js';

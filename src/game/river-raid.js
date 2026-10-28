@@ -2,10 +2,10 @@
 //
 // The block generator follows the ROM routine by routine: the main loop from
 // .setBlockVars to .mainLoopJmp (Jentzsch lines 1846-2244, $F85D-$F85A) and
-// the subroutines it calls. It runs on the 256-byte zero page image, where
-// each variable lives at its ROM address. Upstream checked its 6502-style
-// port against the real routine on a 6502 core; this plain JS version was
-// checked frame for frame against upstream's port.
+// the subroutines it calls. It runs on an image of the zero page, where each
+// variable lives at its ROM address, plus the block lists past it. Upstream
+// checked its 6502-style port against the real routine on a 6502 core; this
+// plain JS version was checked frame for frame against upstream's port.
 
 import {
   PF_PAGE_FC, PF_PAGE_FD, BANK_PTR_TAB, PAGE_FLAG_TAB, SHAPE_POS_TAB, ENEMY_ID_TAB, ROAD_COLOR_TAB,
@@ -14,15 +14,18 @@ import {
 // zero page addresses (Jentzsch lines 168-275)
 export const ZP = Object.freeze({
   dXSpeed: 0x87, prevPF1PatId: 0x88, PF_State: 0x89, sectionEnd: 0x8a, blockOffset: 0x8b, posYLo: 0x8c,
-  bridgeExplode: 0x8d, blockLst: 0x8e, XPos1Lst: 0x94, State1Lst: 0x9a, Shape1IdLst: 0xa0, PF1Lst: 0xa6,
-  PF2Lst: 0xac, missileY: 0xb2, playerX: 0xb3, speedX: 0xb4, speedY: 0xb5, blockPart: 0xb6, fuelHi: 0xb7,
+  bridgeExplode: 0x8d, missileY: 0xb2, playerX: 0xb3, speedX: 0xb4, speedY: 0xb5, blockPart: 0xb6, fuelHi: 0xb7,
   fuelLo: 0xb8, sectionBlock: 0xb9, PF1PatId: 0xbc, level: 0xbd, randomLoSave: 0xbe, randomHiSave: 0xbf,
   randomLo: 0xe9, randomHi: 0xea, randomLoSave2: 0xeb, randomHiSave2: 0xec,
   reflect0: 0xe0, hitEnemyIdx: 0xe2, PFCrashFlag: 0xe4, missileFlag: 0xe6, collidedEnemy: 0xe8, missileX: 0xf5,
+  // The ROM keeps 6 entries per list at $8E-$B1. The port's 8 blocks don't fit
+  // the zero page, so the lists sit past it in the ROM's order, NUM_BLOCKS apart:
+  // reading one past a list's end still lands on the next list's first entry.
+  blockLst: 0x100, XPos1Lst: 0x108, State1Lst: 0x110, Shape1IdLst: 0x118, PF1Lst: 0x120, PF2Lst: 0x128,
 });
 
-export const MEMORY_SIZE = 0x100; // the port's RAM: the zero page
-export const NUM_BLOCKS = 6;
+export const MEMORY_SIZE = 0x130; // the port's RAM: the zero page and the block lists
+export const NUM_BLOCKS = 8;
 const BLOCK_SIZE = 32;
 const SECTION_BLOCKS = 16;
 
@@ -79,7 +82,7 @@ export function runSetBlockVars(mem) {
 
 // Shifts the block lists down by one and fills in the new top block (END).
 // Each PF1 pattern id lasts two blocks (blockPart 2, 1).
-function newBlock(mem) {
+export function newBlock(mem) {
   mem[ZP.blockOffset] = 0;
   const valleyWidth = mem[ZP.level] < 5 ? 6 : 0;
   for (let list = ZP.blockLst; list <= ZP.PF2Lst; list += NUM_BLOCKS) mem.copyWithin(list, list + 1, list + NUM_BLOCKS);
@@ -219,7 +222,10 @@ function placeObject(mem, id, state, x) {
 // and 0 come from the setup lines, rows 12..1 from the loop. COLUPF is the block's
 // green, or for a road block RoadColorTab[row] on loop rows; it changes together
 // with the playfield. Upstream's tools/verify-kernel-pf.mjs checked this per pixel
-// against the ROM. The screen shows all blocks but the top one.
+// against the ROM. The screen shows all blocks but the top one: 224 lines with 8
+// blocks, where the cartridge's 6 show 160. The bottom 160 keep the cartridge's
+// geometry (ROM line = line - 64); the kernel's top-edge quirks at line 0 move up
+// to the taller river's top.
 export const KERNEL_LINES = (NUM_BLOCKS - 1) * BLOCK_SIZE;
 const PF_GREEN = 0xd2;
 
@@ -423,7 +429,7 @@ export function applyKernelCollisions(mem, times) {
       const x = checked7 ? block + 1 : block;
       let cycle = 33 + jetZone(s8);
       if (latched(times, COLLISION.P1FB, from, at(s8, cycle))) {
-        mem[(ZP.blockLst + x) & 0xff] |= BLOCK_FLAGS.PF_COLLIDE;
+        mem[ZP.blockLst + x] |= BLOCK_FLAGS.PF_COLLIDE;
         cycle += 9;
       }
       from = at(s8, cycle + 6) + 3;
@@ -432,6 +438,6 @@ export function applyKernelCollisions(mem, times) {
   const end = KERNEL_LINES * 160;
   const last = blockOffset >= BLOCK_SIZE - 6 ? 1 : 0;
   for (const reg of [COLLISION.M0P, COLLISION.P0FB, COLLISION.M0FB]) if (latched(times, reg, from, end)) mem[store[reg]] = last;
-  if (latched(times, COLLISION.P1FB, from, end)) mem[(ZP.blockLst + last) & 0xff] |= BLOCK_FLAGS.PF_COLLIDE;
+  if (latched(times, COLLISION.P1FB, from, end)) mem[ZP.blockLst + last] |= BLOCK_FLAGS.PF_COLLIDE;
   if (latched(times, COLLISION.PPMM, from, end)) mem[store[COLLISION.PPMM]] = last;
 }
