@@ -11,12 +11,14 @@
 // io.colup0 and io.audio = { c0, f0, v0, c1, f1, v1 } (TIA values).
 
 import {
-  ZP as RIVER_ZP, saveSection, runSetBlockVars,
+  ZP as RIVER_ZP, MEMORY_SIZE, NUM_BLOCKS, KERNEL_LINES, saveSection, runSetBlockVars,
   kernelPlayfieldLines, kernelObjectLines, kernelLineMasks, collisionTimes, applyKernelCollisions,
 } from './river-raid.js';
 import { INIT_TAB, COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './data/playfield.js';
 import { KERNEL_SHAPE_BYTES } from './data/kernel-sprites.js';
 import { statusLines } from './status.js';
+
+export { MEMORY_SIZE };
 
 export const Z = Object.freeze({
   ...RIVER_ZP,
@@ -31,11 +33,11 @@ export const LOW = Object.freeze({
   JetStraight: 0xbc, JetMove: 0xce, JetExplode: 0xe0,
 });
 const GAME = Object.freeze({
-  DIGIT_H: 8, INTRO_SCROLL: 48, NUM_LINES: 160, MAX_LEVEL: 48, MIN_MISSILE: 13, MAX_MISSILE: 161, MISSILE_SPEED: 6,
+  DIGIT_H: 8, INTRO_SCROLL: 48, NUM_LINES: KERNEL_LINES, MAX_LEVEL: 48, MIN_MISSILE: 13, MAX_MISSILE: KERNEL_LINES + 1, MISSILE_SPEED: 6,
   ID_PLANE: 4, ID_SHIP: 7, ID_BRIDGE: 8, ID_EXPLOSION1: 1, ID_EXPLOSION2: 2, DARK_RED: 0x42,
   ENEMY_MOVE: 0x40, PF_COLLIDE: 0x20, PATROL: 0x10, PF_ROAD: 0x80, PF_COLOR: 0x04, DIRECTION: 0x08,
 });
-const END = (list) => list + 5;
+const END = (list) => list + NUM_BLOCKS - 1;
 
 // SetScorePtr1 ($FF1C): scorePtr1 bytes from offset `from` down to 0, every other byte
 function setScorePtr1(mem, value, from) {
@@ -50,11 +52,16 @@ function setScorePtrs(mem, digit) {
   setScorePtr1(mem, LOW.Space, 8);
 }
 
-// GameInit ($FA8F): count = number of InitTab bytes (23 for a new jet, 39 at reset)
+// GameInit ($FA8F): count = number of InitTab bytes (23 for a new jet, 39 at
+// reset). InitTab starts with 6 PF1Lst and 6 PF2Lst bytes, all the straight
+// river; the rest goes from missileY on.
 function gameInit(mem, count) {
-  mem.set(INIT_TAB.slice(0, count), Z.PF1Lst);
-  mem.fill(0, Z.dXSpeed, Z.dXSpeed + 31);
-  mem.fill(mem[Z.level] & 1 ? 1 | GAME.PF_COLOR : 1, Z.blockLst, Z.blockLst + 6); // PF1_PAGE_FLAG
+  mem.fill(INIT_TAB[0], Z.PF1Lst, Z.PF1Lst + NUM_BLOCKS);
+  mem.fill(INIT_TAB[6], Z.PF2Lst, Z.PF2Lst + NUM_BLOCKS);
+  mem.set(INIT_TAB.slice(12, count), Z.missileY);
+  mem.fill(0, Z.dXSpeed, Z.bridgeExplode + 1);
+  for (const list of [Z.XPos1Lst, Z.State1Lst, Z.Shape1IdLst]) mem.fill(0, list, list + NUM_BLOCKS);
+  mem.fill(mem[Z.level] & 1 ? 1 | GAME.PF_COLOR : 1, Z.blockLst, Z.blockLst + NUM_BLOCKS); // PF1_PAGE_FLAG
 }
 
 // SwapPlayers ($FFC8 area): two-player games swap state, lives and score
@@ -194,13 +201,13 @@ function moveEnemyX(mem, i) {
 // Animates the enemies and moves them (from level 2 on, while the game runs).
 function moveEnemies(mem) {
   const frame = mem[Z.frameCnt];
-  // every 16 frames a random block's enemy starts moving
+  // every 16 frames the enemy of one of the bottom 5 blocks starts moving
   if ((frame & 0x0f) === 0) {
     const i = mem[Z.random] & 0x07;
     mem[Z.blockLst + (i >= 5 ? i - 5 : i)] |= GAME.ENEMY_MOVE;
   }
   const moving = mem[Z.gameMode] === 0 && mem[Z.level] >= 2;
-  for (let i = 5; i >= 0; i -= 1) {
+  for (let i = NUM_BLOCKS - 1; i >= 0; i -= 1) {
     let id = mem[Z.Shape1IdLst + i];
     // explosions advance every 16 frames, the other animations every other frame
     if (id < GAME.ID_SHIP && (frame & (id < GAME.ID_PLANE ? 0x0f : 0x01)) === 0) {

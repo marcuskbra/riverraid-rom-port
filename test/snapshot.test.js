@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import test from 'node:test';
-import { romReset, runFrame, Z } from '../src/game/frame.js';
+import { romReset, runFrame, Z, MEMORY_SIZE } from '../src/game/frame.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../src/game/screen.js';
 
 const SNAPSHOT = new URL('./snapshot.json', import.meta.url);
@@ -53,7 +53,7 @@ function feed(v) {
 }
 
 function play({ seed, frames, idle = false, players = 1, atReady }) {
-  const mem = new Uint8Array(0x100);
+  const mem = new Uint8Array(MEMORY_SIZE);
   const io = { swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 };
   let s = seed >>> 0;
   const rand = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; };

@@ -1,4 +1,4 @@
-import { romReset, runFrame, Z, LOW } from '../game/frame.js';
+import { romReset, runFrame, Z, LOW, MEMORY_SIZE } from '../game/frame.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../game/screen.js';
 import { createTiaAudio } from './audio.js';
 import { readGamepad, gamepadEdges } from './gamepad.js';
@@ -23,7 +23,7 @@ const SCREEN_GAME_OVER = 'game-over';
 const RESET_HOLD_FRAMES = 2;
 
 // The ROM's zero page; every variable lives at its ROM address.
-const memory = new Uint8Array(0x100);
+const memory = new Uint8Array(MEMORY_SIZE);
 const pressed = new Set();
 const io = { swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 };
 let display = null;

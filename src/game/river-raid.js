@@ -21,7 +21,8 @@ export const ZP = Object.freeze({
   reflect0: 0xe0, hitEnemyIdx: 0xe2, PFCrashFlag: 0xe4, missileFlag: 0xe6, collidedEnemy: 0xe8, missileX: 0xf5,
 });
 
-const NUM_BLOCKS = 6;
+export const MEMORY_SIZE = 0x100; // the port's RAM: the zero page
+export const NUM_BLOCKS = 6;
 const BLOCK_SIZE = 32;
 const SECTION_BLOCKS = 16;
 
@@ -213,12 +214,13 @@ function placeObject(mem, id, state, x) {
 // *** kernel playfield ***
 // The kernel draws each block as 8 setup lines plus a 2-line loop (Jentzsch
 // lines 520-960). Playfield row r (15..0) of block i ends up on the two screen
-// lines starting at top + (5 - i) * 32 + 33 - 2 * r, where top = blockOffset - 34
-// is the screen line of the top block's first line; rows 15..13 and 0 come from
-// the setup lines, rows 12..1 from the loop. COLUPF is the block's green, or for
-// a road block RoadColorTab[row] on loop rows; it changes together with the
-// playfield. Upstream's tools/verify-kernel-pf.mjs checked this per pixel against the ROM.
-export const KERNEL_LINES = 160;
+// lines starting at top + (NUM_BLOCKS - 1 - i) * 32 + 33 - 2 * r, where top =
+// blockOffset - 34 is the screen line of the top block's first line; rows 15..13
+// and 0 come from the setup lines, rows 12..1 from the loop. COLUPF is the block's
+// green, or for a road block RoadColorTab[row] on loop rows; it changes together
+// with the playfield. Upstream's tools/verify-kernel-pf.mjs checked this per pixel
+// against the ROM. The screen shows all blocks but the top one.
+export const KERNEL_LINES = (NUM_BLOCKS - 1) * BLOCK_SIZE;
 const PF_GREEN = 0xd2;
 
 function pfPatternByte(pageFlag, low) {
@@ -238,7 +240,7 @@ function blockPlayfieldRow(mem, block, row) {
   return { pf1, pf2, colupf: road ? ROAD_COLOR_TAB[colorRow] : green };
 }
 
-// 160 kernel lines, top to bottom: { block, row, pf1, pf2, colupf }
+// KERNEL_LINES kernel lines, top to bottom: { block, row, pf1, pf2, colupf }
 export function kernelPlayfieldLines(mem) {
   const top = mem[ZP.blockOffset] - 34;
   const lines = new Array(KERNEL_LINES);
@@ -273,10 +275,11 @@ function playfieldPixels(line) {
 // *** kernel objects ***
 // Per kernel line: jet (GRP0) byte, enemy (GRP1, vertically delayed) byte and
 // color, and the missile enable, following the kernel's line schedule:
-// - jet: line s shows the jet table byte at index 160 - s (shapePtr0 = table-1, Y = 161 - s)
+// - jet: line s shows the jet table byte at index KERNEL_LINES - s (shapePtr0 =
+//   table-1, Y = KERNEL_LINES + 1 - s)
 // - enemy: block line b = 32 - 2y shows B[y], b = 33 - 2y shows A[y] (y = 11..0),
 //   colored colors[y]; position, NUSIZ1 and REFP1 switch at block line 5..7
-// - missile: ENAM0 is only rewritten on odd block lines, from Y = 161 - s
+// - missile: ENAM0 is only rewritten on odd block lines, from Y = KERNEL_LINES + 1 - s
 // - kernel entry: line 0 gets no enemy graphics when blockOffset < 3 or >= 26
 //   (.noShape), and ENAM0 stays off until its first rewrite below line 0
 // Upstream's tools/verify-kernel-objects.mjs checked this against the ROM kernel.
@@ -287,7 +290,7 @@ export function kernelObjectLines(mem, shapes, jetTable) {
   const missileY = mem[ZP.missileY];
   const lines = Array.from({ length: KERNEL_LINES }, () => ({ grp0: 0, grp1: 0, colup1: 0, block: -1, enam0: 0 }));
   for (let s = 0; s < KERNEL_LINES; s += 1) {
-    const y = 161 - s;
+    const y = KERNEL_LINES + 1 - s;
     if (y < JET_Y && y >= 1) lines[s].grp0 = jetTable[y - 1] ?? 0;
   }
   for (let block = NUM_BLOCKS - 1; block >= 0; block -= 1) {
@@ -305,7 +308,7 @@ export function kernelObjectLines(mem, shapes, jetTable) {
     // missile: odd block lines rewrite ENAM0, held for the following line
     for (let b = 1; b <= 32; b += 2) {
       const s = blockTop + b - 1;
-      const yLine = 161 - s;
+      const yLine = KERNEL_LINES + 1 - s;
       const inJetZone = yLine < JET_Y && b !== 7 && b !== 9;
       const on = !inJetZone && ((yLine - missileY) & 0xf8) === 0 ? 1 : 0;
       if (s < 1) continue;
@@ -348,8 +351,8 @@ function playerPixels(byte, x, nusiz = 0, reflect = false) {
 // Block i is checked on its block line 7 (BIT CXM0P/CXP0FB/CXM0FB/CXPPMM, the
 // first read at cycle 31, then every 6 cycles, 2 more after each hit because
 // STX replaces the taken BPL) and line 8 (CXP1FB at 33, then CXCLR 6 cycles
-// later, or 15 after a hit that sets PF_COLLIDE_FLAG). Lines >= 143, where the
-// jet is drawn, start 7 cycles later. The check stores X = i + 1 (or i when the
+// later, or 15 after a hit that sets PF_COLLIDE_FLAG). The last 17 lines, where
+// the jet is drawn, start 7 cycles later. The check stores X = i + 1 (or i when the
 // kernel was entered past line 7). The last segment is checked after the
 // status display with X = blockOffset >= 26 ? 1 : 0. A read at cycle c sees
 // pixels left of 3c - 68; CXCLR at cycle c clears pixels left of 3c + 3 - 68.
@@ -403,12 +406,12 @@ export function applyKernelCollisions(mem, times) {
   const blockOffset = mem[ZP.blockOffset];
   const top = blockOffset - 34;
   const at = (line, cycle) => line * 160 + 3 * cycle - 68;
-  const jetZone = (line) => (line >= 143 ? 7 : 0);
+  const jetZone = (line) => (line >= KERNEL_LINES - 17 ? 7 : 0);
   let from = 0;
   for (let block = NUM_BLOCKS - 1; block >= 0; block -= 1) {
     const s7 = top + (NUM_BLOCKS - 1 - block) * BLOCK_SIZE + 6;
     const s8 = s7 + 1;
-    const checked7 = s7 >= 1 && s7 <= 159;
+    const checked7 = s7 >= 1 && s7 < KERNEL_LINES;
     if (checked7) {
       let cycle = 31 + jetZone(s7);
       for (const reg of [COLLISION.M0P, COLLISION.P0FB, COLLISION.M0FB, COLLISION.PPMM]) {
@@ -416,7 +419,7 @@ export function applyKernelCollisions(mem, times) {
         cycle += 6;
       }
     }
-    if (s8 >= 1 && s8 <= 159) {
+    if (s8 >= 1 && s8 < KERNEL_LINES) {
       const x = checked7 ? block + 1 : block;
       let cycle = 33 + jetZone(s8);
       if (latched(times, COLLISION.P1FB, from, at(s8, cycle))) {

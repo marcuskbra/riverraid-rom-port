@@ -2,7 +2,7 @@
 // on a canvas, keyboard input while the game has focus, a gamepad, touch
 // buttons on phones, and the TIA sound worklet. Mount with mountPlayer(rootElement).
 
-import { romReset, runFrame, Z } from '../game/frame.js';
+import { romReset, runFrame, Z, MEMORY_SIZE } from '../game/frame.js';
 import { drawScreen, SCREEN_WIDTH, SCREEN_LINES } from '../game/screen.js';
 import { createTiaAudio } from './audio.js';
 import { readGamepad, gamepadEdges } from './gamepad.js';
@@ -22,7 +22,7 @@ export function mountPlayer(root) {
   const muteButton = root.querySelector('[data-mute]');
   const pauseButton = root.querySelector('[data-pause]');
 
-  const memory = new Uint8Array(0x100);
+  const memory = new Uint8Array(MEMORY_SIZE);
   const io = { swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 };
   const held = new Set();
   const audio = createTiaAudio(new URL('./tia-sound.worklet.js', import.meta.url).href);
