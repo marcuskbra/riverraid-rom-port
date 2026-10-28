@@ -21,6 +21,8 @@ export const ZP = Object.freeze({
   fuelLo: 0xb8, sectionBlock: 0xb9, PF1PatId: 0xbc, level: 0xbd, randomLoSave: 0xbe, randomHiSave: 0xbf,
   randomLo: 0xe9, randomHi: 0xea, randomLoSave2: 0xeb, randomHiSave2: 0xec,
   reflect0: 0xe0, hitEnemyIdx: 0xe2, PFCrashFlag: 0xe4, missileFlag: 0xe6, collidedEnemy: 0xe8, missileX: 0xf5,
+  // the port's own: the missile's height past 255 lines, in the ROM's list area
+  missileYHi: 0x8e,
   // The ROM keeps 6 entries per list at $8E-$B1. The port's NUM_BLOCKS don't fit
   // the zero page, so the lists sit past it in the ROM's order, NUM_BLOCKS apart:
   // reading one past a list's end still lands on the next list's first entry.
@@ -41,6 +43,17 @@ const ID_HOUSE = 9, ID_FUEL = 10, ID_SHIP = 7, ID_BRIDGE = 8;
 const DOUBLE_SIZE = 0b101, QUAD_SIZE = 0b111, DIRECTION_FLAG = 0x08;
 
 const END = (list) => list + NUM_BLOCKS - 1;
+
+// The missile's height (the kernel's Y of its bottom line): missileY, and
+// missileYHi once the river is taller than 255 lines.
+export function missileHeight(mem) {
+  return mem[ZP.missileY] | (mem[ZP.missileYHi] << 8);
+}
+
+export function setMissileHeight(mem, y) {
+  mem[ZP.missileY] = y & 0xff;
+  mem[ZP.missileYHi] = y >> 8;
+}
 
 // NextRandom16 ($FAC6): 16-bit LFSR, shifting in bit 4 XOR bit 7 of randomHi
 function nextRandom16(mem) {
@@ -296,7 +309,7 @@ const JET_Y = 19;
 
 export function kernelObjectLines(mem, shapes, jetTable) {
   const top = mem[ZP.blockOffset] - 34;
-  const missileY = mem[ZP.missileY];
+  const missileY = missileHeight(mem);
   const lines = Array.from({ length: KERNEL_LINES }, () => ({ grp0: 0, grp1: 0, colup1: 0, block: -1, enam0: 0 }));
   for (let s = 0; s < KERNEL_LINES; s += 1) {
     const y = KERNEL_LINES + 1 - s;
@@ -319,7 +332,10 @@ export function kernelObjectLines(mem, shapes, jetTable) {
       const s = blockTop + b - 1;
       const yLine = KERNEL_LINES + 1 - s;
       const inJetZone = yLine < JET_Y && b !== 7 && b !== 9;
-      const on = !inJetZone && ((yLine - missileY) & 0xf8) === 0 ? 1 : 0;
+      // the ROM tests (Y - missileY) & $F8 on 8 bits: the same for every
+      // height the cartridge reaches, but it would wrap in a taller river
+      const d = yLine - missileY;
+      const on = !inJetZone && d >= 0 && d < 8 ? 1 : 0;
       if (s < 1) continue;
       for (const t of [s, s + 1]) if (t < KERNEL_LINES) lines[t].enam0 = on;
     }

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { romReset, runFrame, Z, MEMORY_SIZE } from '../src/game/frame.js';
-import { NUM_BLOCKS, KERNEL_LINES } from '../src/game/river-raid.js';
+import { NUM_BLOCKS, KERNEL_LINES, missileHeight, setMissileHeight } from '../src/game/river-raid.js';
 import { SCREEN_LINES } from '../src/game/screen.js';
 
 const READY = 48;
@@ -14,6 +14,8 @@ const ID_PLANE = 4, ID_SHIP = 7, ID_EXPLOSION1 = 1, DOUBLE_SIZE = 0b101;
 const STRAIGHT_PF1 = 0x07, STRAIGHT_PF2 = 0x58; // InitTab's river
 const idle = () => ({ swcha: 0xff, swchb: 0x0b, inpt4: 0x80, inpt5: 0x80 });
 const missileOn = (display) => display.objs.some((o) => o.enam0);
+// the kernel's height (Y) of each line that shows the missile
+const missileLines = (display) => display.objs.flatMap((o, s) => (o.enam0 ? [KERNEL_LINES + 1 - s] : []));
 
 // power on, press RESET and run to the ready screen
 function ready() {
@@ -97,8 +99,9 @@ test('every life starts with river up to the new top edge', () => {
   for (let i = 0; i < 400 && !(mem[Z.gameMode] & 0x80); i += 1) runFrame(mem, io);
   assert.ok(mem[Z.gameMode] & 0x80, 'the jet crashed');
   io.swcha = 0xff;
-  untilReady(mem, io);
+  const display = untilReady(mem, io);
   check(mem, 'after a crash');
+  assert.ok(!missileOn(display), 'a missile shows when the next jet is ready');
 });
 
 test('no missile is drawn while it is off', () => {
@@ -109,16 +112,52 @@ test('no missile is drawn while it is off', () => {
 test('the missile flies to the new top edge', () => {
   const { mem, io } = straightRiver(16);
   mem[Z.missileX] = mem[Z.playerX] + 5;
-  mem[Z.missileY] = 200;
+  setMissileHeight(mem, 200);
   const heights = [];
   for (let i = 0; i < 6; i += 1) {
     runFrame(mem, io);
-    heights.push(mem[Z.missileY]);
+    heights.push(missileHeight(mem));
   }
   assert.deepEqual(heights.slice(0, 5), [206, 212, 218, 224, 230], 'climbs 6 lines a frame up to KERNEL_LINES + 1');
   assert.ok(heights[5] > 230, `switched off after the top edge (missileY ${heights[5]})`);
   const { display } = runFrame(mem, io);
   assert.ok(!missileOn(display), 'no missile after it switched off');
+});
+
+// The missile's height takes 2 bytes once the river is past 255 lines; the
+// ROM's 8-bit test would also show it again 256 lines away.
+test('a missile past the top edge is not drawn', () => {
+  const { mem, io } = straightRiver(16);
+  mem[Z.missileX] = mem[Z.playerX] + 5;
+  const past = 0x100 * Math.ceil((KERNEL_LINES + 8) / 0x100) + 100; // its low byte is a river line
+  for (const y of [KERNEL_LINES + 8, KERNEL_LINES + 20, past]) {
+    setMissileHeight(mem, y);
+    assert.equal(missileHeight(mem), y);
+    const { display } = runFrame(mem, io);
+    assert.deepEqual(missileLines(display), [], `missile height ${y}`);
+  }
+});
+
+test('the missile shows only at its height', () => {
+  for (const y of [20, 100, KERNEL_LINES - 20]) {
+    const { mem, io } = straightRiver(16);
+    mem[Z.missileX] = mem[Z.playerX] + 5;
+    setMissileHeight(mem, y);
+    const lines = missileLines(runFrame(mem, io).display);
+    assert.ok(lines.length, `missile height ${y} shows`);
+    // ENAM0 is rewritten on odd block lines and held for the next line
+    for (const line of lines) assert.ok(line >= y - 1 && line <= y + 8, `missile height ${y} shows at line ${line}`);
+  }
+});
+
+test('a crash switches the flying missile off', () => {
+  const { mem, io } = straightRiver(16);
+  mem[Z.missileX] = mem[Z.playerX] + 5;
+  setMissileHeight(mem, 100);
+  mem[Z.playerX] = 10; // on the left bank
+  runFrame(mem, io);
+  assert.ok(mem[Z.gameMode] & 0x80, 'the jet crashed');
+  assert.ok(!missileOn(runFrame(mem, io).display), 'a missile shows after the crash');
 });
 
 for (const [block, blockOffset] of [[6, 16], [7, 28]]) {
@@ -130,9 +169,10 @@ for (const [block, blockOffset] of [[6, 16], [7, 28]]) {
     assert.ok(pixel && pixel.line < KERNEL_LINES - 160, `the ship shows above the cartridge's lines (${JSON.stringify(pixel)})`);
     // the missile covers 8 lines from missileY up; aim its middle at the ship
     mem[Z.missileX] = pixel.x + 1;
-    mem[Z.missileY] = KERNEL_LINES + 1 - pixel.line - 4;
+    setMissileHeight(mem, KERNEL_LINES + 1 - pixel.line - 4);
     runFrame(mem, io);
     assert.equal(mem[Z.Shape1IdLst + block], ID_EXPLOSION1);
+    assert.ok(!missileOn(runFrame(mem, io).display), 'the missile is off after the hit');
   });
 }
 

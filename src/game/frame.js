@@ -11,7 +11,7 @@
 // io.colup0 and io.audio = { c0, f0, v0, c1, f1, v1 } (TIA values).
 
 import {
-  ZP as RIVER_ZP, MEMORY_SIZE, NUM_BLOCKS, KERNEL_LINES, saveSection, newBlock, runSetBlockVars,
+  ZP as RIVER_ZP, MEMORY_SIZE, NUM_BLOCKS, KERNEL_LINES, saveSection, newBlock, runSetBlockVars, missileHeight, setMissileHeight,
   kernelPlayfieldLines, kernelObjectLines, kernelLineMasks, collisionTimes, applyKernelCollisions,
 } from './river-raid.js';
 import { INIT_TAB, COLOR_TAB, ANIMATE_ID_TAB, SCORE_TAB, VOLUME_TAB, JET_PAGE_TAIL, PF_PAGE_FC } from './data/playfield.js';
@@ -61,7 +61,7 @@ function gameInit(mem, count) {
   mem.fill(INIT_TAB[0], Z.PF1Lst, Z.PF1Lst + NUM_BLOCKS);
   mem.fill(INIT_TAB[6], Z.PF2Lst, Z.PF2Lst + NUM_BLOCKS);
   mem.set(INIT_TAB.slice(12, count), Z.missileY);
-  mem[Z.missileY] = GAME.MISSILE_OFF;
+  setMissileHeight(mem, GAME.MISSILE_OFF);
   mem.fill(0, Z.dXSpeed, Z.bridgeExplode + 1);
   for (const list of [Z.XPos1Lst, Z.State1Lst, Z.Shape1IdLst]) mem.fill(0, list, list + NUM_BLOCKS);
   mem.fill(mem[Z.level] & 1 ? 1 | GAME.PF_COLOR : 1, Z.blockLst, Z.blockLst + NUM_BLOCKS); // PF1_PAGE_FLAG
@@ -79,7 +79,7 @@ function swapPlayers(mem) {
 
 function contFinish(mem, mode) {
   mem[Z.gameMode] = mode;
-  mem[Z.missileY] = GAME.MISSILE_OFF;
+  setMissileHeight(mem, GAME.MISSILE_OFF);
 }
 
 // LooseJet ($FF5C): start the explosion sound, fix the restart point when a
@@ -383,7 +383,7 @@ function explode(mem, i, explosionId) {
     mem[Z.XPos1Lst + i] = 4;
     mem[Z.sectionEnd] += 1;
   }
-  if (addScore(mem, id)) mem[Z.missileY] = GAME.MISSILE_OFF;
+  if (addScore(mem, id)) setMissileHeight(mem, GAME.MISSILE_OFF);
   else looseJet(mem, 1, 0x1f);
 }
 
@@ -391,10 +391,11 @@ function explode(mem, i, explosionId) {
 // B makes the missile follow the jet.
 function moveMissile(mem, io) {
   const player = mem[Z.player];
+  const height = missileHeight(mem);
   let y = GAME.MISSILE_OFF, aim = false;
   if (mem[Z.missileFlag] & 0x80) { // no collision
-    if (mem[Z.missileY] <= GAME.MAX_MISSILE) {
-      y = mem[Z.missileY] + GAME.MISSILE_SPEED;
+    if (height <= GAME.MAX_MISSILE) {
+      y = height + GAME.MISSILE_SPEED;
       aim = !((player ? io.swchb : io.swchb << 1) & 0x80);
     } else if (!((player ? io.inpt5 : io.inpt4) & 0x80)) {
       mem[Z.missileSound] = 0x0f;
@@ -403,7 +404,7 @@ function moveMissile(mem, io) {
     }
   }
   if (aim) mem[Z.missileX] = mem[Z.playerX] + 5;
-  mem[Z.missileY] = y;
+  setMissileHeight(mem, y);
 }
 
 // One frame of the running game: collisions, fuel, the jet, the missile.
